@@ -545,7 +545,7 @@ async function fetchLadder() {
   statusEl.textContent = 'Fetching live ladder…';
 
   try {
-    const res = await fetch('https://api.squiggle.com.au/?q=standings;year=2026');
+    const res = await fetch('https://api.squiggle.com.au/?q=standings&year=2026');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const standings = data.standings;
