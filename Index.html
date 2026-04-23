@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2026 AFL Draft Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f5f5f4;
+      --bg-tertiary: #eeede9;
+      --bg-info: #e6f1fb;
+      --bg-danger: #fcebeb;
+      --bg-success: #eaf3de;
+      --text-primary: #1a1a1a;
+      --text-secondary: #6b6b6b;
+      --text-tertiary: #a0a0a0;
+      --text-info: #185fa5;
+      --text-danger: #a32d2d;
+      --text-success: #3b6d11;
+      --border-light: rgba(0,0,0,0.1);
+      --border-mid: rgba(0,0,0,0.18);
+      --border-strong: rgba(0,0,0,0.28);
+      --border-info: rgba(24,95,165,0.4);
+      --border-danger: rgba(163,45,45,0.4);
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-xl: 16px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-primary: #1c1c1c;
+        --bg-secondary: #252525;
+        --bg-tertiary: #2e2e2e;
+        --bg-info: #0c2a45;
+        --bg-danger: #3a1212;
+        --bg-success: #162a08;
+        --text-primary: #f0efeb;
+        --text-secondary: #a0a09a;
+        --text-tertiary: #666660;
+        --text-info: #85b7eb;
+        --text-danger: #f09595;
+        --text-success: #97c459;
+        --border-light: rgba(255,255,255,0.08);
+        --border-mid: rgba(255,255,255,0.14);
+        --border-strong: rgba(255,255,255,0.22);
+        --border-info: rgba(133,183,235,0.35);
+        --border-danger: rgba(240,149,149,0.35);
+      }
+    }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding: 1.5rem;
+    }
+
+    h1, h2, h3 { font-weight: 500; }
+
+    /* ── App shell ───────────────────────────────────────── */
+    .app {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .app-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 1rem 1.25rem;
+      background: var(--bg-primary);
+      border-radius: var(--radius-lg);
+      border: 0.5px solid var(--border-light);
+    }
+
+    .app-header h1 { font-size: 18px; color: var(--text-primary); }
+    .app-header p  { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .btn {
+      padding: 7px 14px;
+      border-radius: var(--radius-md);
+      border: 0.5px solid var(--border-mid);
+      background: transparent;
+      color: var(--text-primary);
+      cursor: pointer;
+      font-size: 13px;
+      font-family: inherit;
+      transition: background 0.12s;
+    }
+    .btn:hover   { background: var(--bg-secondary); }
+    .btn.primary { background: var(--bg-info); border-color: var(--border-info); color: var(--text-info); }
+    .btn.primary:hover { opacity: 0.85; }
+    .btn.danger  { background: var(--bg-danger); border-color: var(--border-danger); color: var(--text-danger); }
+    .btn.danger:hover { opacity: 0.85; }
+
+    /* ── Progress bar ────────────────────────────────────── */
+    .progress-wrap {
+      padding: 0.75rem 1.25rem;
+      background: var(--bg-secondary);
+      border-radius: var(--radius-lg);
+      border: 0.5px solid var(--border-light);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .progress-info { flex: 1; min-width: 160px; }
+    .progress-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+    .progress-bar { height: 4px; background: var(--border-light); border-radius: 2px; }
+    .progress-fill { height: 100%; border-radius: 2px; background: #378ADD; transition: width 0.3s; }
+    .pick-badge {
+      font-size: 12px;
+      padding: 5px 12px;
+      border-radius: var(--radius-md);
+      background: var(--bg-info);
+      color: var(--text-info);
+      border: 0.5px solid var(--border-info);
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .pick-badge.complete {
+      background: var(--bg-success);
+      color: var(--text-success);
+      border-color: rgba(59,109,17,0.35);
+    }
+
+    /* ── Main grid ───────────────────────────────────────── */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 260px 1fr 1fr;
+      gap: 1rem;
+      align-items: start;
+    }
+
+    @media (max-width: 900px) {
+      .main-grid { grid-template-columns: 1fr 1fr; }
+      .sidebar { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+      .sidebar h2 { grid-column: 1 / -1; }
+    }
+    @media (max-width: 560px) {
+      .main-grid { grid-template-columns: 1fr; }
+      body { padding: 0.75rem; }
+    }
+
+    /* ── Sidebar ─────────────────────────────────────────── */
+    .sidebar {
+      background: var(--bg-primary);
+      border-radius: var(--radius-lg);
+      border: 0.5px solid var(--border-light);
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: 700px;
+      overflow-y: auto;
+    }
+    .sidebar h2 {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 6px;
+      padding-bottom: 8px;
+      border-bottom: 0.5px solid var(--border-light);
+    }
+    .club-card {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 9px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      border: 0.5px solid transparent;
+      transition: border-color 0.12s, background 0.12s;
+    }
+    .club-card:hover  { background: var(--bg-secondary); border-color: var(--border-mid); }
+    .club-card.active { background: var(--bg-secondary); border-color: var(--border-strong); }
+    .club-dot {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px; font-weight: 600;
+      flex-shrink: 0;
+    }
+    .club-info { flex: 1; min-width: 0; }
+    .club-name  { font-size: 13px; font-weight: 500; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .club-picks-count { font-size: 11px; color: var(--text-secondary); }
+
+    /* ── Panel (shared) ──────────────────────────────────── */
+    .panel {
+      background: var(--bg-primary);
+      border-radius: var(--radius-lg);
+      border: 0.5px solid var(--border-light);
+      padding: 1rem 1.25rem;
+      max-height: 700px;
+      overflow-y: auto;
+    }
+    .panel-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .panel-title-badge {
+      font-size: 11px;
+      background: var(--bg-secondary);
+      padding: 2px 8px;
+      border-radius: 10px;
+      color: var(--text-tertiary);
+    }
+
+    /* ── Position filters ────────────────────────────────── */
+    .filter-row { display: flex; gap: 5px; margin-bottom: 0.75rem; flex-wrap: wrap; }
+    .filter-btn {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 10px;
+      border: 0.5px solid var(--border-light);
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.1s;
+    }
+    .filter-btn.active {
+      background: var(--bg-secondary);
+      border-color: var(--border-strong);
+      color: var(--text-primary);
+    }
+
+    /* ── Prospect rows ───────────────────────────────────── */
+    .prospect-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 7px 9px;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      border: 0.5px solid transparent;
+      transition: all 0.1s;
+      margin-bottom: 3px;
+    }
+    .prospect-row:hover { background: var(--bg-secondary); border-color: var(--border-light); }
+    .prospect-row.drafted { opacity: 0.35; pointer-events: none; }
+    .rank-num { font-size: 11px; color: var(--text-tertiary); width: 18px; text-align: right; flex-shrink: 0; }
+    .prospect-avatar {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 500;
+      flex-shrink: 0;
+    }
+    .prospect-details { flex: 1; min-width: 0; }
+    .prospect-name { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+    .prospect-meta { font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .prospect-tied { font-size: 10px; color: var(--text-tertiary); font-weight: 400; }
+    .pos-badge {
+      font-size: 10px;
+      font-weight: 500;
+      padding: 2px 6px;
+      border-radius: 10px;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+    .draft-btn {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: var(--radius-md);
+      background: transparent;
+      border: 0.5px solid var(--border-mid);
+      color: var(--text-primary);
+      cursor: pointer;
+      font-family: inherit;
+      flex-shrink: 0;
+      transition: background 0.1s;
+    }
+    .draft-btn:hover { background: var(--bg-secondary); }
+
+    /* ── Draft board rows ────────────────────────────────── */
+    .pick-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 7px 9px;
+      border-radius: var(--radius-md);
+      border: 0.5px solid var(--border-light);
+      background: var(--bg-primary);
+      margin-bottom: 4px;
+      transition: border-color 0.12s, background 0.12s;
+    }
+    .pick-row.current-pick {
+      border-color: var(--border-info);
+      background: var(--bg-info);
+    }
+    .pick-row.highlighted { border-color: var(--border-strong); }
+    .pick-num { font-size: 11px; color: var(--text-tertiary); width: 32px; flex-shrink: 0; }
+    .pick-club-dot {
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 8px; font-weight: 600;
+      flex-shrink: 0;
+    }
+    .pick-club-name { font-size: 12px; color: var(--text-secondary); width: 82px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pick-player { font-size: 13px; font-weight: 500; color: var(--text-primary); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pick-player.empty { color: var(--text-tertiary); font-weight: 400; font-style: italic; }
+
+    /* ── Toast ───────────────────────────────────────────── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-primary);
+      border: 0.5px solid var(--border-mid);
+      border-radius: var(--radius-md);
+      padding: 9px 18px;
+      font-size: 13px;
+      color: var(--text-primary);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      z-index: 999;
+      opacity: 0;
+      transition: opacity 0.25s;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    .toast.show { opacity: 1; }
+
+    /* ── Sort toggle ─────────────────────────────────────── */
+    .sort-btn {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: var(--radius-md);
+      border: 0.5px solid var(--border-mid);
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .sort-btn:hover { background: var(--bg-secondary); }
+
+    /* ── Round divider ───────────────────────────────────── */
+    .round-divider {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 8px 0 4px;
+      margin-bottom: 4px;
+      border-top: 0.5px solid var(--border-light);
+      margin-top: 4px;
+    }
+    .round-divider:first-child { border-top: none; margin-top: 0; }
+  </style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Header -->
+  <div class="app-header">
+    <div>
+      <h1>2026 AFL Draft Simulator</h1>
+      <p>Select players for each club across 2 rounds of the national draft</p>
+    </div>
+    <div class="controls">
+      <button class="btn" id="auto-pick-btn">Auto pick (1)</button>
+      <button class="btn" id="auto-all-btn">Auto all remaining</button>
+      <button class="btn danger" id="reset-btn">Reset draft</button>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-wrap">
+    <div class="progress-info">
+      <div class="progress-label" id="progress-text">0 / 36 picks made</div>
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+    </div>
+    <div class="pick-badge" id="current-pick-badge">Pick 1 on the clock</div>
+    <div id="ladder-status" style="font-size:11px;color:var(--text-tertiary);white-space:nowrap;">Loading ladder…</div>
+  </div>
+
+  <!-- Main grid -->
+  <div class="main-grid">
+
+    <!-- Sidebar: clubs -->
+    <div class="sidebar">
+      <h2>Clubs</h2>
+      <div id="club-list"></div>
+    </div>
+
+    <!-- Prospects panel -->
+    <div class="panel">
+      <div class="panel-title">
+        <span>Available prospects</span>
+        <button class="sort-btn" id="sort-btn">Sort: Rank</button>
+      </div>
+      <div class="filter-row" id="pos-filters"></div>
+      <div id="prospect-list"></div>
+    </div>
+
+    <!-- Draft board -->
+    <div class="panel">
+      <div class="panel-title">
+        <span>Draft board</span>
+        <span class="panel-title-badge" id="round-label">R1: 0/18 · R2: 0/18</span>
+      </div>
+      <div id="draft-board"></div>
+    </div>
+
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+  /* ══════════════════════════════════════════
+     DATA
+  ══════════════════════════════════════════ */
+
+  const CLUBS = [
+    { id: 'ade', name: 'Adelaide',         short: 'ADE', color: '#002B5C', text: '#ffffff' },
+    { id: 'bri', name: 'Brisbane',         short: 'BRI', color: '#7B2D8B', text: '#ffffff' },
+    { id: 'car', name: 'Carlton',          short: 'CAR', color: '#003087', text: '#ffffff' },
+    { id: 'col', name: 'Collingwood',      short: 'COL', color: '#1a1a1a', text: '#ffffff' },
+    { id: 'ess', name: 'Essendon',         short: 'ESS', color: '#CC0000', text: '#ffffff' },
+    { id: 'fre', name: 'Fremantle',        short: 'FRE', color: '#2C1654', text: '#ffffff' },
+    { id: 'gcs', name: 'Gold Coast',       short: 'GCS', color: '#C8A84B', text: '#1a1a1a' },
+    { id: 'gws', name: 'GWS Giants',       short: 'GWS', color: '#F47920', text: '#ffffff' },
+    { id: 'gee', name: 'Geelong',          short: 'GEE', color: '#1C3F7A', text: '#ffffff' },
+    { id: 'haw', name: 'Hawthorn',         short: 'HAW', color: '#4D2004', text: '#FFC220' },
+    { id: 'mel', name: 'Melbourne',        short: 'MEL', color: '#CC2031', text: '#ffffff' },
+    { id: 'nth', name: 'North Melbourne',  short: 'NTH', color: '#003E7E', text: '#ffffff' },
+    { id: 'por', name: 'Port Adelaide',    short: 'POR', color: '#008AAB', text: '#ffffff' },
+    { id: 'ric', name: 'Richmond',         short: 'RIC', color: '#FFD200', text: '#1a1a1a' },
+    { id: 'stk', name: 'St Kilda',         short: 'STK', color: '#E31E24', text: '#ffffff' },
+    { id: 'syd', name: 'Sydney',           short: 'SYD', color: '#E31E24', text: '#ffffff' },
+    { id: 'wce', name: 'West Coast',       short: 'WCE', color: '#003087', text: '#FFD200' },
+    { id: 'wbd', name: 'Western Bulldogs', short: 'WBD', color: '#0057A8', text: '#ffffff' },
+  ];
+
+  // Position badge colours: [background, text]
+  const POS_COLORS = {
+    'MID':     ['#E6F1FB', '#185FA5'],
+    'FWD':     ['#FAECE7', '#993C1D'],
+    'DEF':     ['#EAF3DE', '#3B6D11'],
+    'RUC':     ['#FAEEDA', '#854F0B'],
+    'KeyFWD': ['#EEEDFE', '#534AB7'],
+    'KeyDEF': ['#E1F5EE', '#0F6E56'],
+  };
+
+  async function loadProspects() {
+  const response = await fetch('prospects.csv');
+  const text = await response.text();
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',');
+
+  return lines.slice(1).map((line, index) => {
+    const values = line.split(',');
+    return {
+      id: index + 1,
+      name: values[0]?.trim(),
+      height: values[1]?.trim() + 'cm',
+      dob: values[2]?.trim(),
+      pos: values[3]?.trim(),
+      club: values[4]?.trim(),
+      state: values[5]?.trim(),
+      tied: parseTied(values[6]?.trim()),
+      rank: index + 1,
+    };
+  });
+}
+
+function parseTied(link) {
+  if (!link) return null;
+  const map = {
+    'Port Adelaide': 'por', 'Carlton': 'car', 'West Coast': 'wce',
+    'Essendon': 'ess', 'Adelaide': 'ade', 'Richmond': 'ric',
+    'GWS': 'gws', 'Sydney': 'syd', 'Gold Coast': 'gcs',
+    'Fremantle': 'fre', 'Hawthorn': 'haw', 'Melbourne': 'mel',
+    'Western Bulldogs': 'wbd', 'North Melbourne': 'nth',
+    'Brisbane': 'bri', 'Geelong': 'gee', 'Collingwood': 'col',
+    'St Kilda': 'stk',
+  };
+  for (const [name, id] of Object.entries(map)) {
+    if (link.includes(name)) return id;
+  }
+  return null;
+}
+// ── Draft order (built from live ladder, populated on load) ──
+// Fallback order used if the API is unavailable (based on 2025 final ladder)
+const FALLBACK_ORDER = ['nth','wce','stk','gcs','mel','wbd','ess','fre','ade','ric','col','bri','por','haw','gee','gws','car','syd'];
+
+// Maps Squiggle team names → our club IDs
+const SQUIGGLE_NAME_MAP = {
+  'Adelaide':               'ade',
+  'Brisbane Lions':         'bri',
+  'Carlton':                'car',
+  'Collingwood':            'col',
+  'Essendon':               'ess',
+  'Fremantle':              'fre',
+  'Gold Coast':             'gcs',
+  'Greater Western Sydney': 'gws',
+  'Geelong':                'gee',
+  'Hawthorn':               'haw',
+  'Melbourne':              'mel',
+  'North Melbourne':        'nth',
+  'Port Adelaide':          'por',
+  'Richmond':               'ric',
+  'St Kilda':               'stk',
+  'Sydney':                 'syd',
+  'West Coast':             'wce',
+  'Western Bulldogs':       'wbd',
+};
+
+// This will be populated by fetchLadder() on page load
+let ALL_PICKS = [...FALLBACK_ORDER, ...FALLBACK_ORDER]; // 2 rounds
+
+/* ══════════════════════════════════════════
+   LIVE LADDER FETCH (Squiggle API)
+══════════════════════════════════════════ */
+
+async function fetchLadder() {
+  const statusEl = document.getElementById('ladder-status');
+  statusEl.textContent = 'Fetching live ladder…';
+
+  try {
+    const res = await fetch('https://api.squiggle.com.au/?q=standings;year=2026');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const standings = data.standings;
+
+    if (!standings || standings.length === 0) throw new Error('No standings data');
+
+    // Sort by ladder position ascending (1st = best team = picks LAST in draft)
+    standings.sort((a, b) => a.rank - b.rank);
+
+    // Reverse: worst team (highest rank number) picks first
+    const draftOrder = standings
+      .slice()
+      .reverse()
+      .map(team => SQUIGGLE_NAME_MAP[team.name])
+      .filter(Boolean);
+
+    if (draftOrder.length !== 18) throw new Error(`Expected 18 teams, got ${draftOrder.length}`);
+
+    ALL_PICKS = [...draftOrder, ...draftOrder]; // Round 1 + Round 2
+
+    // Show which round the ladder reflects
+    const maxRound = Math.max(...standings.map(t => t.played));
+    statusEl.textContent = maxRound > 0
+      ? `✓ Live ladder loaded — reflects Round ${maxRound}`
+      : '✓ Pre-season order loaded (no games played yet)';
+    statusEl.style.color = 'var(--text-success)';
+
+  } catch (err) {
+    console.warn('Squiggle API error, using fallback order:', err.message);
+    ALL_PICKS = [...FALLBACK_ORDER, ...FALLBACK_ORDER];
+    statusEl.textContent = '⚠ Could not load live ladder — using 2025 final order';
+    statusEl.style.color = 'var(--text-danger)';
+  }
+
+  // Reinitialise state with correct pick count, then render
+  draftResults = new Array(ALL_PICKS.length).fill(null);
+  currentPick  = 0;
+  render();
+}
+
+  /* ══════════════════════════════════════════
+     STATE
+  ══════════════════════════════════════════ */
+
+  let draftResults  = new Array(ALL_PICKS.length).fill(null); // prospectId per pick slot
+  let currentPick   = 0;
+  let posFilter     = 'All';
+  let sortMode      = 'rank'; // 'rank' | 'name'
+  let selectedClub  = null;  // clubId string or null
+
+  /* ══════════════════════════════════════════
+     HELPERS
+  ══════════════════════════════════════════ */
+
+  const getClub     = id => CLUBS.find(c => c.id === id);
+  const getProspect = id => PROSPECTS.find(p => p.id === id);
+  const isDrafted   = id => draftResults.some(r => r === id);
+
+  function getClubPicks(clubId) {
+    return ALL_PICKS.map((cid, idx) => ({
+      pickNum: idx + 1,
+      round: idx < 18 ? 1 : 2,
+      prospectId: draftResults[idx],
+      isMine: cid === clubId,
+    })).filter(p => p.isMine);
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), 2800);
+  }
+
+  function posBadge(pos) {
+    const [bg, fg] = POS_COLORS[pos] || ['#eee', '#333'];
+    return `<span class="pos-badge" style="background:${bg};color:${fg}">${pos}</span>`;
+  }
+
+  /* ══════════════════════════════════════════
+     ACTIONS
+  ══════════════════════════════════════════ */
+
+  function draftPlayer(prospectId) {
+    if (currentPick >= ALL_PICKS.length) return;
+    if (isDrafted(prospectId)) { showToast('Player already drafted.'); return; }
+    draftResults[currentPick] = prospectId;
+    const p     = getProspect(prospectId);
+    const club  = getClub(ALL_PICKS[currentPick]);
+    showToast(`Pick ${currentPick + 1}: ${club.name} select ${p.name}`);
+    currentPick++;
+    render();
+  }
+
+  function autoPickOne() {
+    if (currentPick >= ALL_PICKS.length) return;
+    const clubId    = ALL_PICKS[currentPick];
+    const available = PROSPECTS.filter(p => !isDrafted(p.id));
+    if (!available.length) return;
+    // Prioritise club-tied prospects
+    const tied = available.filter(p => p.tied === clubId);
+    draftPlayer((tied.length ? tied[0] : available[0]).id);
+  }
+
+  function autoPickAll() {
+    let guard = 0;
+    function step() {
+      if (currentPick >= ALL_PICKS.length || guard++ > 100) return;
+      autoPickOne();
+      if (currentPick < ALL_PICKS.length) setTimeout(step, 70);
+    }
+    step();
+  }
+
+  function selectClub(id) {
+    selectedClub = selectedClub === id ? null : id;
+    render();
+  }
+
+  function setFilter(pos) {
+    posFilter = pos;
+    renderProspects();
+    renderPosFilters();
+  }
+
+  function toggleSort() {
+    sortMode = sortMode === 'rank' ? 'name' : 'rank';
+    document.getElementById('sort-btn').textContent = `Sort: ${sortMode === 'rank' ? 'Rank' : 'Name'}`;
+    renderProspects();
+  }
+
+  /* ══════════════════════════════════════════
+     RENDER FUNCTIONS
+  ══════════════════════════════════════════ */
+
+  function renderClubList() {
+    document.getElementById('club-list').innerHTML = CLUBS.map(club => {
+      const picks = getClubPicks(club.id);
+      const made  = picks.filter(p => p.prospectId).length;
+      return `<div class="club-card${selectedClub === club.id ? ' active' : ''}" onclick="selectClub('${club.id}')">
+        <div class="club-dot" style="background:${club.color};color:${club.text}">${club.short}</div>
+        <div class="club-info">
+          <div class="club-name">${club.name}</div>
+          <div class="club-picks-count">${made}/${picks.length} picks used</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderPosFilters() {
+    const positions = ['All', 'MID', 'FWD', 'DEF', 'RUC', 'KeyFWD', 'KeyDEF'];
+    document.getElementById('pos-filters').innerHTML = positions.map(p =>
+      `<button class="filter-btn${posFilter === p ? ' active' : ''}" onclick="setFilter('${p}')">${p}</button>`
+    ).join('');
+  }
+
+  function renderProspects() {
+    let list = [...PROSPECTS];
+    if (posFilter !== 'All') list = list.filter(p => p.pos === posFilter);
+    if (sortMode === 'name') list.sort((a, b) => a.name.localeCompare(b.name));
+
+    document.getElementById('prospect-list').innerHTML = list.map(p => {
+      const drafted    = isDrafted(p.id);
+      const tiedClub   = p.tied ? getClub(p.tied) : null;
+      const canDraft   = !drafted && currentPick < ALL_PICKS.length;
+      return `<div class="prospect-row${drafted ? ' drafted' : ''}">
+        <span class="rank-num">${p.rank}</span>
+        <div class="prospect-avatar" style="background:${POS_COLORS[p.pos]?.[0]||'#eee'};color:${POS_COLORS[p.pos]?.[1]||'#333'}">
+          ${p.name.split(' ').map(w => w[0]).join('').substring(0, 2)}
+        </div>
+        <div class="prospect-details">
+          <div class="prospect-name">${p.name}</div>
+          <div class="prospect-meta">${p.club} · ${p.state} · ${p.height}
+            ${tiedClub ? `<span class="prospect-tied"> · tied: ${tiedClub.name}</span>` : ''}
+          </div>
+        </div>
+        ${posBadge(p.pos)}
+        ${canDraft ? `<button class="draft-btn" onclick="draftPlayer(${p.id})">Draft</button>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  function renderDraftBoard() {
+    let html = '';
+    ALL_PICKS.forEach((clubId, idx) => {
+      const club      = getClub(clubId);
+      const prospect  = draftResults[idx] ? getProspect(draftResults[idx]) : null;
+      const isCurrent = idx === currentPick && currentPick < ALL_PICKS.length;
+      const isHighlit = selectedClub && clubId === selectedClub;
+      const round     = idx < 18 ? 1 : 2;
+      const pickInRnd = idx < 18 ? idx + 1 : idx - 17;
+
+      if (idx === 0 || idx === 18) {
+        html += `<div class="round-divider">Round ${round}</div>`;
+      }
+
+      html += `<div class="pick-row${isCurrent ? ' current-pick' : ''}${isHighlit ? ' highlighted' : ''}">
+        <span class="pick-num" style="color:${isCurrent ? 'var(--text-info)' : 'var(--text-tertiary)'}">
+          R${round}.${String(pickInRnd).padStart(2,'0')}
+        </span>
+        <div class="pick-club-dot" style="background:${club.color};color:${club.text}">${club.short}</div>
+        <span class="pick-club-name">${club.name}</span>
+        <span class="pick-player${prospect ? '' : ' empty'}">
+          ${prospect ? prospect.name : (isCurrent ? '— on the clock —' : 'TBD')}
+        </span>
+        ${prospect ? posBadge(prospect.pos) : ''}
+      </div>`;
+    });
+
+    document.getElementById('draft-board').innerHTML = html;
+
+    // Scroll current pick into view
+    const el = document.querySelector('.pick-row.current-pick');
+    if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  function updateProgress() {
+    const made  = draftResults.filter(Boolean).length;
+    const total = ALL_PICKS.length;
+    const madeR1 = draftResults.slice(0, 18).filter(Boolean).length;
+    const madeR2 = draftResults.slice(18).filter(Boolean).length;
+
+    document.getElementById('progress-fill').style.width = `${Math.round(made / total * 100)}%`;
+    document.getElementById('progress-text').textContent = `${made} / ${total} picks made`;
+    document.getElementById('round-label').textContent   = `R1: ${madeR1}/18 · R2: ${madeR2}/18`;
+
+    const badge = document.getElementById('current-pick-badge');
+    if (currentPick < total) {
+      const club      = getClub(ALL_PICKS[currentPick]);
+      const round     = currentPick < 18 ? 1 : 2;
+      const pickInRnd = currentPick < 18 ? currentPick + 1 : currentPick - 17;
+      badge.textContent = `Pick ${currentPick + 1} — ${club.name} (R${round}.${pickInRnd})`;
+      badge.classList.remove('complete');
+    } else {
+      badge.textContent = 'Draft complete!';
+      badge.classList.add('complete');
+    }
+  }
+
+  function render() {
+    renderClubList();
+    renderPosFilters();
+    renderProspects();
+    renderDraftBoard();
+    updateProgress();
+  }
+
+  /* ══════════════════════════════════════════
+     EVENT LISTENERS
+  ══════════════════════════════════════════ */
+
+  document.getElementById('auto-pick-btn').addEventListener('click', autoPickOne);
+  document.getElementById('auto-all-btn').addEventListener('click', autoPickAll);
+  document.getElementById('sort-btn').addEventListener('click', toggleSort);
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    draftResults = new Array(ALL_PICKS.length).fill(null);
+    currentPick  = 0;
+    selectedClub = null;
+    posFilter    = 'All';
+    fetchLadder();
+  });
+
+fetchLadder();
+  /* ══════════════════════════════════════════
+     INIT
+  ══════════════════════════════════════════ */
+
+  loadProspects().then(prospects => {
+  PROSPECTS = prospects;
+  render();
+});
+</script>
+</body>
+</html>
