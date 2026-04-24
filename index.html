@@ -469,122 +469,116 @@
     'KeyDEF': ['#E1F5EE', '#0F6E56'],
   };
 
-  async function loadProspects() {
-  const response = await fetch('prospects.csv');
-  const text = await response.text();
-  const lines = text.trim().split('\n');
-  const headers = lines[0].split(',');
+  // ── Prospects (populated by loadProspects on page load) ──
+  let PROSPECTS = [];
 
-  return lines.slice(1).map((line, index) => {
-    const values = line.split(',');
-    return {
-      id: index + 1,
-      name: values[0]?.trim(),
-      height: values[1]?.trim() + 'cm',
-      dob: values[2]?.trim(),
-      pos: values[3]?.trim(),
-      club: values[4]?.trim(),
-      state: values[5]?.trim(),
-      tied: parseTied(values[6]?.trim()),
-      rank: index + 1,
+  function parseTied(link) {
+    if (!link) return null;
+    const map = {
+      'Port Adelaide': 'por', 'Carlton': 'car', 'West Coast': 'wce',
+      'Essendon': 'ess', 'Adelaide': 'ade', 'Richmond': 'ric',
+      'GWS': 'gws', 'Sydney': 'syd', 'Gold Coast': 'gcs',
+      'Fremantle': 'fre', 'Hawthorn': 'haw', 'Melbourne': 'mel',
+      'Western Bulldogs': 'wbd', 'North Melbourne': 'nth',
+      'Brisbane': 'bri', 'Geelong': 'gee', 'Collingwood': 'col',
+      'St Kilda': 'stk',
     };
-  });
-}
+    for (const [name, id] of Object.entries(map)) {
+      if (link.includes(name)) return id;
+    }
+    return null;
+  }
 
-function parseTied(link) {
-  if (!link) return null;
-  const map = {
-    'Port Adelaide': 'por', 'Carlton': 'car', 'West Coast': 'wce',
-    'Essendon': 'ess', 'Adelaide': 'ade', 'Richmond': 'ric',
-    'GWS': 'gws', 'Sydney': 'syd', 'Gold Coast': 'gcs',
-    'Fremantle': 'fre', 'Hawthorn': 'haw', 'Melbourne': 'mel',
-    'Western Bulldogs': 'wbd', 'North Melbourne': 'nth',
-    'Brisbane': 'bri', 'Geelong': 'gee', 'Collingwood': 'col',
-    'St Kilda': 'stk',
+  async function loadProspects() {
+    const response = await fetch('prospects.csv');
+    const text = await response.text();
+    const lines = text.trim().split('\n');
+
+    return lines.slice(1).map((line, index) => {
+      const values = line.split(',');
+      return {
+        id: index + 1,
+        name: values[0]?.trim(),
+        height: values[1]?.trim() ? values[1].trim() + 'cm' : '',
+        dob: values[2]?.trim(),
+        pos: values[3]?.trim(),
+        club: values[4]?.trim(),
+        state: values[5]?.trim(),
+        tied: parseTied(values[6]?.trim()),
+        rank: index + 1,
+      };
+    }).filter(p => p.name); // drop any blank rows
+  }
+
+  // ── Draft order (built from live ladder, populated on load) ──
+  // Fallback order if API unavailable (2025 final ladder)
+  const FALLBACK_ORDER = ['nth','wce','stk','gcs','mel','wbd','ess','fre','ade','ric','col','bri','por','haw','gee','gws','car','syd'];
+
+  const SQUIGGLE_NAME_MAP = {
+    'Adelaide':               'ade',
+    'Brisbane Lions':         'bri',
+    'Carlton':                'car',
+    'Collingwood':            'col',
+    'Essendon':               'ess',
+    'Fremantle':              'fre',
+    'Gold Coast':             'gcs',
+    'Greater Western Sydney': 'gws',
+    'Geelong':                'gee',
+    'Hawthorn':               'haw',
+    'Melbourne':              'mel',
+    'North Melbourne':        'nth',
+    'Port Adelaide':          'por',
+    'Richmond':               'ric',
+    'St Kilda':               'stk',
+    'Sydney':                 'syd',
+    'West Coast':             'wce',
+    'Western Bulldogs':       'wbd',
   };
-  for (const [name, id] of Object.entries(map)) {
-    if (link.includes(name)) return id;
+
+  let ALL_PICKS = [...FALLBACK_ORDER, ...FALLBACK_ORDER];
+
+  /* ══════════════════════════════════════════
+     LIVE LADDER FETCH (Squiggle via CORS proxy)
+  ══════════════════════════════════════════ */
+
+  async function fetchLadder() {
+    const statusEl = document.getElementById('ladder-status');
+    statusEl.textContent = 'Fetching live ladder…';
+
+    try {
+      const SQUIGGLE_URL = 'https://api.squiggle.com.au/?q=standings&year=2026';
+      const res = await fetch('https://corsproxy.io/?' + encodeURIComponent(SQUIGGLE_URL));
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const standings = data.standings;
+
+      if (!standings || standings.length === 0) throw new Error('No standings data');
+
+      standings.sort((a, b) => a.rank - b.rank);
+
+      const draftOrder = standings
+        .slice()
+        .reverse()
+        .map(team => SQUIGGLE_NAME_MAP[team.name])
+        .filter(Boolean);
+
+      if (draftOrder.length !== 18) throw new Error(`Expected 18 teams, got ${draftOrder.length}`);
+
+      ALL_PICKS = [...draftOrder, ...draftOrder];
+
+      const maxRound = Math.max(...standings.map(t => t.played));
+      statusEl.textContent = maxRound > 0
+        ? `✓ Live ladder loaded — reflects Round ${maxRound}`
+        : '✓ Pre-season order loaded (no games played yet)';
+      statusEl.style.color = 'var(--text-success)';
+
+    } catch (err) {
+      console.warn('Squiggle API error, using fallback order:', err.message);
+      ALL_PICKS = [...FALLBACK_ORDER, ...FALLBACK_ORDER];
+      statusEl.textContent = '⚠ Could not load live ladder — using 2025 final order';
+      statusEl.style.color = 'var(--text-danger)';
+    }
   }
-  return null;
-}
-// ── Draft order (built from live ladder, populated on load) ──
-// Fallback order used if the API is unavailable (based on 2025 final ladder)
-const FALLBACK_ORDER = ['nth','wce','stk','gcs','mel','wbd','ess','fre','ade','ric','col','bri','por','haw','gee','gws','car','syd'];
-
-// Maps Squiggle team names → our club IDs
-const SQUIGGLE_NAME_MAP = {
-  'Adelaide':               'ade',
-  'Brisbane Lions':         'bri',
-  'Carlton':                'car',
-  'Collingwood':            'col',
-  'Essendon':               'ess',
-  'Fremantle':              'fre',
-  'Gold Coast':             'gcs',
-  'Greater Western Sydney': 'gws',
-  'Geelong':                'gee',
-  'Hawthorn':               'haw',
-  'Melbourne':              'mel',
-  'North Melbourne':        'nth',
-  'Port Adelaide':          'por',
-  'Richmond':               'ric',
-  'St Kilda':               'stk',
-  'Sydney':                 'syd',
-  'West Coast':             'wce',
-  'Western Bulldogs':       'wbd',
-};
-
-// This will be populated by fetchLadder() on page load
-let ALL_PICKS = [...FALLBACK_ORDER, ...FALLBACK_ORDER]; // 2 rounds
-
-/* ══════════════════════════════════════════
-   LIVE LADDER FETCH (Squiggle API)
-══════════════════════════════════════════ */
-
-async function fetchLadder() {
-  const statusEl = document.getElementById('ladder-status');
-  statusEl.textContent = 'Fetching live ladder…';
-
-  try {
-    const res = await fetch('https://api.squiggle.com.au/?q=standings&year=2026');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    const standings = data.standings;
-
-    if (!standings || standings.length === 0) throw new Error('No standings data');
-
-    // Sort by ladder position ascending (1st = best team = picks LAST in draft)
-    standings.sort((a, b) => a.rank - b.rank);
-
-    // Reverse: worst team (highest rank number) picks first
-    const draftOrder = standings
-      .slice()
-      .reverse()
-      .map(team => SQUIGGLE_NAME_MAP[team.name])
-      .filter(Boolean);
-
-    if (draftOrder.length !== 18) throw new Error(`Expected 18 teams, got ${draftOrder.length}`);
-
-    ALL_PICKS = [...draftOrder, ...draftOrder]; // Round 1 + Round 2
-
-    // Show which round the ladder reflects
-    const maxRound = Math.max(...standings.map(t => t.played));
-    statusEl.textContent = maxRound > 0
-      ? `✓ Live ladder loaded — reflects Round ${maxRound}`
-      : '✓ Pre-season order loaded (no games played yet)';
-    statusEl.style.color = 'var(--text-success)';
-
-  } catch (err) {
-    console.warn('Squiggle API error, using fallback order:', err.message);
-    ALL_PICKS = [...FALLBACK_ORDER, ...FALLBACK_ORDER];
-    statusEl.textContent = '⚠ Could not load live ladder — using 2025 final order';
-    statusEl.style.color = 'var(--text-danger)';
-  }
-
-  // Reinitialise state with correct pick count, then render
-  draftResults = new Array(ALL_PICKS.length).fill(null);
-  currentPick  = 0;
-  render();
-}
 
   /* ══════════════════════════════════════════
      STATE
@@ -807,17 +801,29 @@ async function fetchLadder() {
     selectedClub = null;
     posFilter    = 'All';
     fetchLadder();
+    init();
   });
 
-fetchLadder();
   /* ══════════════════════════════════════════
-     INIT - Check
+     INIT — load ladder + prospects together
   ══════════════════════════════════════════ */
 
-  loadProspects().then(prospects => {
-  PROSPECTS = prospects;
-  render();
-});
+  async function init() {
+    // Run both fetches in parallel for speed
+    const [prospects] = await Promise.all([
+      loadProspects(),
+      fetchLadder(),
+    ]);
+
+    PROSPECTS = prospects;
+
+    // Reset state now that we have real data
+    draftResults = new Array(ALL_PICKS.length).fill(null);
+    currentPick  = 0;
+    render();
+  }
+
+  init();
 </script>
 </body>
 </html>
