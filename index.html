@@ -469,7 +469,7 @@
     'KeyDEF': ['#E1F5EE', '#0F6E56'],
   };
 
-  // ── Prospects: declared here, populated by loadProspects() on init ──
+  // ── Prospects: declared here, populated by init() ──
   let PROSPECTS = [];
 
   function parseTied(link) {
@@ -496,98 +496,90 @@
     return lines.slice(1).map((line, index) => {
       const values = line.split(',');
       return {
-        id: index + 1,
-        name: values[0]?.trim(),
+        id:     index + 1,
+        name:   values[0]?.trim(),
         height: values[1]?.trim() ? values[1].trim() + 'cm' : '',
-        dob: values[2]?.trim(),
-        pos: values[3]?.trim(),
-        club: values[4]?.trim(),
-        state: values[5]?.trim(),
-        tied: parseTied(values[6]?.trim()),
-        rank: index + 1,
+        dob:    values[2]?.trim(),
+        pos:    values[3]?.trim(),
+        club:   values[4]?.trim(),
+        state:  values[5]?.trim(),
+        tied:   parseTied(values[6]?.trim()),
+        rank:   index + 1,
       };
     }).filter(p => p.name);
   }
-// ── Draft order (built from live ladder, populated on load) ──
-// Fallback order used if the API is unavailable (based on 2025 final ladder)
-const FALLBACK_ORDER = ['nth','wce','stk','gcs','mel','wbd','ess','fre','ade','ric','col','bri','por','haw','gee','gws','car','syd'];
 
-// Maps Squiggle team names → our club IDs
-const SQUIGGLE_NAME_MAP = {
-  'Adelaide':               'ade',
-  'Brisbane Lions':         'bri',
-  'Carlton':                'car',
-  'Collingwood':            'col',
-  'Essendon':               'ess',
-  'Fremantle':              'fre',
-  'Gold Coast':             'gcs',
-  'Greater Western Sydney': 'gws',
-  'Geelong':                'gee',
-  'Hawthorn':               'haw',
-  'Melbourne':              'mel',
-  'North Melbourne':        'nth',
-  'Port Adelaide':          'por',
-  'Richmond':               'ric',
-  'St Kilda':               'stk',
-  'Sydney':                 'syd',
-  'West Coast':             'wce',
-  'Western Bulldogs':       'wbd',
-};
+  // ── Draft order ──
+  // Fallback used if ladder.json is missing (based on 2025 final ladder)
+  const FALLBACK_ORDER = ['ric','ess','car','por','wce','nth','col','stk','gws','mel','wbd','ade','gcs','bri','gee','haw','fre','syd'];
 
-// This will be populated by fetchLadder() on page load
-let ALL_PICKS = [...FALLBACK_ORDER, ...FALLBACK_ORDER]; // 2 rounds
+  const SQUIGGLE_NAME_MAP = {
+    'Adelaide':               'ade',
+    'Brisbane Lions':         'bri',
+    'Carlton':                'car',
+    'Collingwood':            'col',
+    'Essendon':               'ess',
+    'Fremantle':              'fre',
+    'Gold Coast':             'gcs',
+    'Greater Western Sydney': 'gws',
+    'Geelong':                'gee',
+    'Hawthorn':               'haw',
+    'Melbourne':              'mel',
+    'North Melbourne':        'nth',
+    'Port Adelaide':          'por',
+    'Richmond':               'ric',
+    'St Kilda':               'stk',
+    'Sydney':                 'syd',
+    'West Coast':             'wce',
+    'Western Bulldogs':       'wbd',
+  };
 
-/* ══════════════════════════════════════════
-   LIVE LADDER FETCH (Squiggle API)
-══════════════════════════════════════════ */
+  let ALL_PICKS = [...FALLBACK_ORDER, ...FALLBACK_ORDER]; // 2 rounds, populated by loadLadder()
 
-async function fetchLadder() {
-  const statusEl = document.getElementById('ladder-status');
-  statusEl.textContent = 'Fetching live ladder…';
+  /* ══════════════════════════════════════════
+     LADDER — reads from ladder.json (generated
+     by GitHub Action from Squiggle API daily)
+  ══════════════════════════════════════════ */
 
-  try {
-    const SQUIGGLE_URL = 'https://api.squiggle.com.au/?q=standings&year=2026';
-    const res = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(SQUIGGLE_URL));
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const wrapper = await res.json();
-    const data = JSON.parse(wrapper.contents);
-    const standings = data.standings; 
+  async function loadLadder() {
+    const statusEl = document.getElementById('ladder-status');
+    statusEl.textContent = 'Loading ladder…';
 
-    if (!standings || standings.length === 0) throw new Error('No standings data');
+    try {
+      const res = await fetch('ladder.json');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const standings = data.standings;
 
-    // Sort by ladder position ascending (1st = best team = picks LAST in draft)
-    standings.sort((a, b) => a.rank - b.rank);
+      if (!standings || standings.length === 0) throw new Error('No standings data');
 
-    // Reverse: worst team (highest rank number) picks first
-    const draftOrder = standings
-      .slice()
-      .reverse()
-      .map(team => SQUIGGLE_NAME_MAP[team.name])
-      .filter(Boolean);
+      // Sort rank ascending: rank 1 = top of ladder
+      standings.sort((a, b) => a.rank - b.rank);
 
-    if (draftOrder.length !== 18) throw new Error(`Expected 18 teams, got ${draftOrder.length}`);
+      // Reverse: rank 18 (last) picks first
+      const draftOrder = standings
+        .slice()
+        .reverse()
+        .map(team => SQUIGGLE_NAME_MAP[team.name])
+        .filter(Boolean);
 
-    ALL_PICKS = [...draftOrder, ...draftOrder]; // Round 1 + Round 2
+      if (draftOrder.length !== 18) throw new Error(`Expected 18 teams, got ${draftOrder.length}`);
 
-    // Show which round the ladder reflects
-    const maxRound = Math.max(...standings.map(t => t.played));
-    statusEl.textContent = maxRound > 0
-      ? `✓ Live ladder loaded — reflects Round ${maxRound}`
-      : '✓ Pre-season order loaded (no games played yet)';
-    statusEl.style.color = 'var(--text-success)';
+      ALL_PICKS = [...draftOrder, ...draftOrder];
 
-  } catch (err) {
-    console.warn('Squiggle API error, using fallback order:', err.message);
-    ALL_PICKS = [...FALLBACK_ORDER, ...FALLBACK_ORDER];
-    statusEl.textContent = '⚠ Could not load live ladder — using 2025 final order';
-    statusEl.style.color = 'var(--text-danger)';
+      const maxRound = Math.max(...standings.map(t => t.played || 0));
+      statusEl.textContent = maxRound > 0
+        ? `✓ Live ladder loaded — after Round ${maxRound}`
+        : '✓ Pre-season ladder loaded';
+      statusEl.style.color = 'var(--text-success)';
+
+    } catch (err) {
+      console.warn('ladder.json not found, using fallback order:', err.message);
+      ALL_PICKS = [...FALLBACK_ORDER, ...FALLBACK_ORDER];
+      statusEl.textContent = '⚠ Using Round 9 ladder order';
+      statusEl.style.color = 'var(--text-secondary)';
+    }
   }
-
-  // Reinitialise state with correct pick count, then render
-  draftResults = new Array(ALL_PICKS.length).fill(null);
-  currentPick  = 0;
-  render();
-}
 
   /* ══════════════════════════════════════════
      STATE
@@ -813,17 +805,18 @@ async function fetchLadder() {
   });
 
   /* ══════════════════════════════════════════
-     INIT — load ladder + prospects in parallel
+     INIT — load ladder.json + prospects.csv
+     in parallel, then render
   ══════════════════════════════════════════ */
 
   async function init() {
-    const [prospects] = await Promise.all([
+    const [_, prospects] = await Promise.all([
+      loadLadder(),
       loadProspects(),
-      fetchLadder(),
     ]);
     PROSPECTS = prospects;
     draftResults = new Array(ALL_PICKS.length).fill(null);
-    currentPick = 0;
+    currentPick  = 0;
     render();
   }
 
