@@ -15,20 +15,9 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Fetch ladder from Squiggle API
+      - name: Fetch and commit ladder
         run: |
-          curl "https://api.squiggle.com.au/?q=standings" \
-            -H "User-Agent: AFL Draft Simulator (tbob3211 on GitHub)" \
-            -o ladder.json
-
-      - name: Commit and push ladder.json
-        run: |
-          git config user.name "github-actions"
-          git config user.email "actions@github.com"
-          git add ladder.json
-          git diff --staged --quiet || git commit -m "Update ladder data [skip ci]"
-          git push
-        run: |
+          curl "https://api.squiggle.com.au/?q=standings" -H "User-Agent: AFL Draft Simulator (tbob3211)" -o ladder.json
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add ladder.json
