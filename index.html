@@ -489,24 +489,46 @@
     return null;
   }
 
+  // Parses a range string like "10-20" → returns the lower number for sorting.
+  // Players with no range are pushed to the bottom (rank 999).
+  function parseRange(rangeStr) {
+    if (!rangeStr || !rangeStr.trim()) return 999;
+    const match = rangeStr.trim().match(/^(\d+)/);
+    return match ? parseInt(match[1], 10) : 999;
+  }
+
   async function loadProspects() {
     const response = await fetch('prospects.csv');
     const text = await response.text();
     const lines = text.trim().split('\n');
-    return lines.slice(1).map((line, index) => {
+
+    // CSV columns: Name, Height, DOB, Position, Junior Club, State, Range, Academy/Link
+    const prospects = lines.slice(1).map((line, index) => {
+      // Handle commas inside quoted fields (e.g. "Club, State")
       const values = line.split(',');
+      const rangeRaw = values[6]?.trim() || '';
       return {
-        id:     index + 1,
-        name:   values[0]?.trim(),
-        height: values[1]?.trim() ? values[1].trim() + 'cm' : '',
-        dob:    values[2]?.trim(),
-        pos:    values[3]?.trim(),
-        club:   values[4]?.trim(),
-        state:  values[5]?.trim(),
-        tied:   parseTied(values[6]?.trim()),
-        rank:   index + 1,
+        id:         index + 1,
+        name:       values[0]?.trim().replace(/^\uFEFF/, ''), // strip BOM if present
+        height:     values[1]?.trim() ? values[1].trim() + 'cm' : '',
+        dob:        values[2]?.trim(),
+        pos:        values[3]?.trim(),
+        club:       values[4]?.trim(),
+        state:      values[5]?.trim(),
+        range:      rangeRaw,           // e.g. "10-20" — displayed on card
+        rangeSort:  parseRange(rangeRaw), // lower number = ranks first
+        tied:       parseTied(values[7]?.trim()), // Academy/Link now col 7
+        rank:       index + 1,          // original row order, kept as fallback
       };
     }).filter(p => p.name);
+
+    // Sort by draft range (lowest first), then alphabetically for ties
+    prospects.sort((a, b) => a.rangeSort - b.rangeSort || a.name.localeCompare(b.name));
+
+    // Re-assign rank based on sorted order
+    prospects.forEach((p, i) => { p.rank = i + 1; });
+
+    return prospects;
   }
 
   // ── Draft order ──
@@ -669,7 +691,7 @@
 
   function toggleSort() {
     sortMode = sortMode === 'rank' ? 'name' : 'rank';
-    document.getElementById('sort-btn').textContent = `Sort: ${sortMode === 'rank' ? 'Rank' : 'Name'}`;
+    document.getElementById('sort-btn').textContent = `Sort: ${sortMode === 'rank' ? 'Range' : 'Name'}`;
     renderProspects();
   }
 
@@ -701,19 +723,29 @@
   function renderProspects() {
     let list = [...PROSPECTS];
     if (posFilter !== 'All') list = list.filter(p => p.pos === posFilter);
-    if (sortMode === 'name') list.sort((a, b) => a.name.localeCompare(b.name));
+
+    // Sort modes: range (default), name
+    if (sortMode === 'name') {
+      list.sort((a, b) => a.name.localeCompare(b.name));
+    } else {
+      // Sort by draft range (already sorted on load, but re-sort after filter)
+      list.sort((a, b) => a.rangeSort - b.rangeSort || a.name.localeCompare(b.name));
+    }
 
     document.getElementById('prospect-list').innerHTML = list.map(p => {
       const drafted    = isDrafted(p.id);
       const tiedClub   = p.tied ? getClub(p.tied) : null;
       const canDraft   = !drafted && currentPick < ALL_PICKS.length;
+      const rangeBadge = p.range
+        ? `<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:var(--bg-secondary);color:var(--text-secondary);border:0.5px solid var(--border-light);white-space:nowrap;">Pick ${p.range}</span>`
+        : '';
       return `<div class="prospect-row${drafted ? ' drafted' : ''}">
         <span class="rank-num">${p.rank}</span>
         <div class="prospect-avatar" style="background:${POS_COLORS[p.pos]?.[0]||'#eee'};color:${POS_COLORS[p.pos]?.[1]||'#333'}">
           ${p.name.split(' ').map(w => w[0]).join('').substring(0, 2)}
         </div>
         <div class="prospect-details">
-          <div class="prospect-name">${p.name}</div>
+          <div class="prospect-name">${p.name} ${rangeBadge}</div>
           <div class="prospect-meta">${p.club} · ${p.state} · ${p.height}
             ${tiedClub ? `<span class="prospect-tied"> · tied: ${tiedClub.name}</span>` : ''}
           </div>
