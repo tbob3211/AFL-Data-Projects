@@ -345,6 +345,32 @@
     }
     .toast.show { opacity: 1; }
 
+    /* ── Bid match modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200;
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal-box {
+      background: var(--bg-primary);
+      border: 0.5px solid var(--border-mid);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      max-width: 440px; width: 90%;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+    }
+    .modal-box h3 { font-size: 16px; font-weight: 500; margin-bottom: 0.5rem; }
+    .modal-box p  { font-size: 13px; color: var(--text-secondary); margin-bottom: 1.25rem; line-height: 1.6; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .modal-club-dot {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 22px; height: 22px; border-radius: 50%;
+      font-size: 8px; font-weight: 600;
+      vertical-align: middle; margin-right: 3px;
+    }
+
     /* ── Sort toggle ─────────────────────────────────────── */
     .sort-btn {
       font-size: 11px;
@@ -381,7 +407,7 @@
   <div class="app-header">
     <div>
       <h1>2026 AFL Draft Simulator</h1>
-      <p>Select players for each club across 2 rounds of the national draft</p>
+      <p>Select players for each club across 5 rounds of the national draft · 2025 DVI points shown per pick</p>
     </div>
     <div class="controls">
       <button class="btn" id="auto-pick-btn">Auto pick (1)</button>
@@ -433,6 +459,19 @@
 
 <div id="toast" class="toast"></div>
 
+<!-- Bid match modal -->
+<div id="bid-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h3 id="modal-title">Academy / Father-Son Bid</h3>
+    <p id="modal-body"></p>
+    <div class="modal-actions">
+      <button class="btn" id="modal-decline">Decline — let bid stand</button>
+      <button class="btn primary" id="modal-match">Match bid</button>
+    </div>
+  </div>
+</div>
+
+<script src="draft-values.js"></script>
 <script>
   /* ══════════════════════════════════════════
      DATA
@@ -533,7 +572,9 @@
 
   // ── Draft order ──
   // Fallback used if ladder.json is missing (based on 2025 final ladder)
+  // Base order (18 clubs, reverse ladder). Repeated 5 times for 5 rounds = 90 picks.
   const FALLBACK_ORDER = ['ric','ess','car','por','wce','nth','col','stk','gws','mel','wbd','ade','gcs','bri','gee','haw','fre','syd'];
+  const NUM_ROUNDS = 5;
 
   const SQUIGGLE_NAME_MAP = {
     'Adelaide':               'ade',
@@ -556,7 +597,8 @@
     'Western Bulldogs':       'wbd',
   };
 
-  let ALL_PICKS = [...FALLBACK_ORDER, ...FALLBACK_ORDER]; // 2 rounds, populated by loadLadder()
+  let ALL_PICKS = Array.from({length: NUM_ROUNDS}, () => [...FALLBACK_ORDER]).flat(); // 5 rounds = 90 picks
+  const compPicksAwarded = new Set(); // tracks clubs awarded a Round 2 comp pick (capped at 1 per club)
 
   /* ══════════════════════════════════════════
      LADDER — reads from ladder.json (generated
@@ -587,7 +629,7 @@
 
       if (draftOrder.length !== 18) throw new Error(`Expected 18 teams, got ${draftOrder.length}`);
 
-      ALL_PICKS = [...draftOrder, ...draftOrder];
+      ALL_PICKS = Array.from({length: NUM_ROUNDS}, () => [...draftOrder]).flat(); // 5 rounds
 
       const maxRound = Math.max(...standings.map(t => t.played || 0));
       statusEl.textContent = maxRound > 0
@@ -597,7 +639,7 @@
 
     } catch (err) {
       console.warn('ladder.json not found, using fallback order:', err.message);
-      ALL_PICKS = [...FALLBACK_ORDER, ...FALLBACK_ORDER];
+      ALL_PICKS = Array.from({length: NUM_ROUNDS}, () => [...FALLBACK_ORDER]).flat(); // 5 rounds
       statusEl.textContent = '⚠ Using Round 9 ladder order';
       statusEl.style.color = 'var(--text-secondary)';
     }
@@ -647,13 +689,159 @@
      ACTIONS
   ══════════════════════════════════════════ */
 
-  function draftPlayer(prospectId) {
+  /* ══════════════════════════════════════════
+     BID MATCHING SYSTEM
+  ══════════════════════════════════════════ */
+
+  // Find the earliest unused pick index for a given club (after current pick)
+  function getEarliestPick(clubId, afterIdx) {
+    for (let i = afterIdx; i < ALL_PICKS.length; i++) {
+      if (ALL_PICKS[i] === clubId && !draftResults[i]) return i;
+    }
+    return -1; // club has no remaining picks
+  }
+
+  // Tied club matches the bid — insert them at bidPickIdx, remove their original pick
+  // Returns the index in ALL_PICKS where Round 2 begins (after 18 slots)
+  function getRound2StartIdx() {
+    let count = 0;
+    for (let i = 0; i < ALL_PICKS.length; i++) {
+      if (count === 18) return i;
+      count++;
+    }
+    return 18;
+  }
+
+  function matchBid(prospectId, bidPickIdx, tiedClubId, tiedPickIdx) {
+    const p             = getProspect(prospectId);
+    const tiedClub      = getClub(tiedClubId);
+
+    // Before splicing, record which clubs hold picks 1-5 (indices 0-4) in order.
+    // We store them as an ordered array (index 0 = pick 1, index 1 = pick 2, etc.)
+    // so we know who was displaced most severely.
+    const top5InOrder = [];
+    if (bidPickIdx <= 4) {
+      for (let i = 0; i <= 4 && i < ALL_PICKS.length; i++) {
+        if (!draftResults[i] && ALL_PICKS[i] !== tiedClubId) {
+          top5InOrder.push(ALL_PICKS[i]);
+        }
+      }
+    }
+
+    // Insert tiedClub into the pick order at bidPickIdx
+    ALL_PICKS.splice(bidPickIdx, 0, tiedClubId);
+    draftResults.splice(bidPickIdx, 0, null);
+
+    // tiedPickIdx has shifted by 1 — remove it so tied club doesn't get extra pick
+    const adjustedTiedIdx = tiedPickIdx + 1;
+    ALL_PICKS.splice(adjustedTiedIdx, 1);
+    draftResults.splice(adjustedTiedIdx, 1);
+
+    // Assign the player to the matched pick slot
+    draftResults[bidPickIdx] = prospectId;
+    currentPick = bidPickIdx + 1;
+
+    showToast(`${tiedClub.name} MATCH — ${p.name} joins ${tiedClub.name}`);
+
+    // Award comp picks in REVERSE order so that when inserted at r2Start,
+    // the club with the highest pick (pick 1) ends up FIRST in Round 2.
+    // Example: [Richmond, Essendon, Carlton] reversed → insert Carlton first,
+    // then Essendon, then Richmond → Richmond ends up at r2Start (first).
+    const toAward = top5InOrder
+      .filter(clubId => !compPicksAwarded.has(clubId));
+
+    [...toAward].reverse().forEach((clubId, i) => {
+      const r2Start = getRound2StartIdx();
+      ALL_PICKS.splice(r2Start, 0, clubId);
+      draftResults.splice(r2Start, 0, null);
+      compPicksAwarded.add(clubId);
+      const club = getClub(clubId);
+      // Stagger toasts so they don't overlap
+      setTimeout(() => {
+        showToast(`🔄 ${club.name} receive a Round 2 comp pick (top-5 displaced)`);
+      }, 700 + (toAward.length - 1 - i) * 1200);
+    });
+
+    render();
+  }
+
+  // Tied club declines — original bidding club keeps the player
+  function declineBid(prospectId, bidPickIdx) {
+    const p       = getProspect(prospectId);
+    const bidClub = getClub(ALL_PICKS[bidPickIdx]);
+    draftResults[bidPickIdx] = prospectId;
+    currentPick = bidPickIdx + 1;
+    showToast(`Bid stands — ${bidClub.name} select ${p.name}`);
+    render();
+  }
+
+  function closeModal() {
+    document.getElementById('bid-modal').classList.add('hidden');
+  }
+
+  // Core draft function — triggers bid modal if player is tied to another club
+  function draftPlayer(prospectId, autoMatch = false) {
     if (currentPick >= ALL_PICKS.length) return;
     if (isDrafted(prospectId)) { showToast('Player already drafted.'); return; }
-    draftResults[currentPick] = prospectId;
-    const p     = getProspect(prospectId);
-    const club  = getClub(ALL_PICKS[currentPick]);
-    showToast(`Pick ${currentPick + 1}: ${club.name} select ${p.name}`);
+
+    const p             = getProspect(prospectId);
+    const biddingClubId = ALL_PICKS[currentPick];
+    const biddingClub   = getClub(biddingClubId);
+    const bidPickIdx    = currentPick;
+
+    // Check if player is tied to a different club
+    if (p.tied && p.tied !== biddingClubId) {
+      const tiedClub    = getClub(p.tied);
+      const tiedPickIdx = getEarliestPick(p.tied, currentPick + 1);
+
+      // Tied club has no picks remaining — bid stands automatically
+      if (tiedPickIdx === -1) {
+        draftResults[bidPickIdx] = prospectId;
+        currentPick++;
+        showToast(`${tiedClub.name} have no picks to match — ${biddingClub.name} keep ${p.name}`);
+        render();
+        return;
+      }
+
+      if (autoMatch) {
+        // Auto mode: tied club always matches
+        matchBid(prospectId, bidPickIdx, p.tied, tiedPickIdx);
+        return;
+      }
+
+      // Manual mode: show bid modal
+      const dot = `<span class="modal-club-dot" style="background:${tiedClub.color};color:${tiedClub.text}">${tiedClub.short}</span>`;
+      document.getElementById('modal-title').textContent = 'Academy / Father-Son Bid';
+      document.getElementById('modal-body').innerHTML =
+        `<strong>${biddingClub.name}</strong> have bid on <strong>${p.name}</strong> with Pick ${bidPickIdx + 1}.<br><br>` +
+        `${dot}<strong>${tiedClub.name}</strong> can match this bid using their Pick ${tiedPickIdx + 1}, ` +
+        `moving up to Pick ${bidPickIdx + 1}.<br><br>` +
+        `If matched, <strong>${biddingClub.name}</strong> will continue from Pick ${bidPickIdx + 2} onward.`;
+
+      // Clone buttons to remove any previous event listeners
+      const matchBtn   = document.getElementById('modal-match');
+      const declineBtn = document.getElementById('modal-decline');
+      const newMatch   = matchBtn.cloneNode(true);
+      const newDecline = declineBtn.cloneNode(true);
+      matchBtn.replaceWith(newMatch);
+      declineBtn.replaceWith(newDecline);
+
+      newMatch.addEventListener('click', () => {
+        closeModal();
+        matchBid(prospectId, bidPickIdx, p.tied, tiedPickIdx);
+      });
+      newDecline.addEventListener('click', () => {
+        closeModal();
+        declineBid(prospectId, bidPickIdx);
+      });
+
+      document.getElementById('bid-modal').classList.remove('hidden');
+      return;
+    }
+
+    // No tie — straightforward pick
+    draftResults[bidPickIdx] = prospectId;
+    showToast(`Pick ${bidPickIdx + 1}: ${biddingClub.name} select ${p.name}`);
     currentPick++;
     render();
   }
@@ -665,15 +853,17 @@
     if (!available.length) return;
     // Prioritise club-tied prospects
     const tied = available.filter(p => p.tied === clubId);
-    draftPlayer((tied.length ? tied[0] : available[0]).id);
+    draftPlayer((tied.length ? tied[0] : available[0]).id, true); // autoMatch = true
   }
 
   function autoPickAll() {
     let guard = 0;
     function step() {
-      if (currentPick >= ALL_PICKS.length || guard++ > 100) return;
+      if (currentPick >= ALL_PICKS.length || guard++ > 200) return;
       autoPickOne();
-      if (currentPick < ALL_PICKS.length) setTimeout(step, 70);
+      if (currentPick < ALL_PICKS.length && document.getElementById('bid-modal').classList.contains('hidden')) {
+        setTimeout(step, 70);
+      }
     }
     step();
   }
@@ -763,10 +953,12 @@
       const prospect  = draftResults[idx] ? getProspect(draftResults[idx]) : null;
       const isCurrent = idx === currentPick && currentPick < ALL_PICKS.length;
       const isHighlit = selectedClub && clubId === selectedClub;
-      const round     = idx < 18 ? 1 : 2;
-      const pickInRnd = idx < 18 ? idx + 1 : idx - 17;
+      const round     = Math.floor(idx / 18) + 1;
+      const pickInRnd = (idx % 18) + 1;
+      const pickNum   = idx + 1;
+      const dviValue  = typeof getPickValue === 'function' ? getPickValue(pickNum) : 0;
 
-      if (idx === 0 || idx === 18) {
+      if (idx % 18 === 0) {
         html += `<div class="round-divider">Round ${round}</div>`;
       }
 
@@ -780,6 +972,7 @@
           ${prospect ? prospect.name : (isCurrent ? '— on the clock —' : 'TBD')}
         </span>
         ${prospect ? posBadge(prospect.pos) : ''}
+        ${dviValue > 0 ? `<span style="font-size:10px;color:var(--text-tertiary);white-space:nowrap;">${dviValue}pts</span>` : ''}
       </div>`;
     });
 
@@ -829,6 +1022,7 @@
   document.getElementById('auto-all-btn').addEventListener('click', autoPickAll);
   document.getElementById('sort-btn').addEventListener('click', toggleSort);
   document.getElementById('reset-btn').addEventListener('click', () => {
+    compPicksAwarded.clear();
     draftResults = new Array(ALL_PICKS.length).fill(null);
     currentPick  = 0;
     selectedClub = null;
@@ -847,6 +1041,7 @@
       loadProspects(),
     ]);
     PROSPECTS = prospects;
+    compPicksAwarded.clear();
     draftResults = new Array(ALL_PICKS.length).fill(null);
     currentPick  = 0;
     render();
