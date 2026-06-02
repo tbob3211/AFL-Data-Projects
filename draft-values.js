@@ -5,11 +5,13 @@
  * Points are assigned to picks 1–54 only.
  * Every pick from 55 onward has a value of 0.
  *
- * Key rules:
- *  - To match a bid, a club must spend picks totalling
- *    the bid pick's DVI value minus a 10% discount.
- *  - Example: bid at Pick 1 (3000 pts) → costs 2700 pts to match.
- *  - Picks 55+ are worth 0 pts and cannot be used to match bids.
+ * Bid match cost is scaled by the tied club's ladder position:
+ *   Positions 11–18 : 10% discount  (× 0.90)
+ *   Positions  5–10 : no adjustment (× 1.00)
+ *   Positions  3– 4 : 10% loading   (× 1.10)
+ *   Positions  1– 2 : 20% loading   (× 1.20)
+ *
+ * Picks 55+ are worth 0 pts and cannot be used to match bids.
  */
 
 const DRAFT_VALUE_INDEX = {
@@ -69,9 +71,6 @@ const DRAFT_VALUE_INDEX = {
   54:   14,
 };
 
-// Bid match discount: 10% off the bid pick's DVI value
-const BID_MATCH_DISCOUNT = 0.10;
-
 /**
  * Get the DVI value for a given pick number.
  * Returns 0 for picks outside the 1–54 range.
@@ -81,12 +80,33 @@ function getPickValue(pickNumber) {
 }
 
 /**
- * Calculate how many points a club needs to spend
- * to match a bid made at a given pick number.
+ * Returns the cost multiplier for a club based on their ladder position.
+ * ladderRank 1 = top of ladder, 18 = bottom.
  */
-function getMatchCost(bidPickNumber) {
+function getMatchMultiplier(ladderRank) {
+  if (!ladderRank || ladderRank >= 11) return 0.90; // 10% discount
+  if (ladderRank >= 5)                 return 1.00; // no adjustment
+  if (ladderRank >= 3)                 return 1.10; // 10% loading
+  return 1.20;                                       // 20% loading (rank 1–2)
+}
+
+/**
+ * Returns a human-readable label for the modifier applied.
+ */
+function getMatchModifierLabel(ladderRank) {
+  if (!ladderRank || ladderRank >= 11) return '10% discount (ladder positions 11–18)';
+  if (ladderRank >= 5)                 return 'no adjustment (ladder positions 5–10)';
+  if (ladderRank >= 3)                 return '10% loading (ladder positions 3–4)';
+  return '20% loading (ladder positions 1–2)';
+}
+
+/**
+ * Calculate how many points a club needs to spend to match a bid.
+ * ladderRank: the tied club's ladder position (1=top, 18=bottom).
+ */
+function getMatchCost(bidPickNumber, ladderRank) {
   const bidValue = getPickValue(bidPickNumber);
-  return Math.ceil(bidValue * (1 - BID_MATCH_DISCOUNT));
+  return Math.ceil(bidValue * getMatchMultiplier(ladderRank));
 }
 
 /**

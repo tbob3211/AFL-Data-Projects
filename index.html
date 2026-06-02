@@ -600,6 +600,7 @@
 
   let ALL_PICKS = Array.from({length: NUM_ROUNDS}, () => [...FALLBACK_ORDER]).flat(); // 5 rounds = 90 picks
   const compPicksAwarded = new Set(); // tracks clubs awarded a Round 2 comp pick (capped at 1 per club)
+  let LADDER_POSITIONS = {}; // clubId → rank (1 = top of ladder, 18 = bottom)
 
   /* ══════════════════════════════════════════
      LADDER — reads from ladder.json (generated
@@ -632,6 +633,12 @@
 
       ALL_PICKS = Array.from({length: NUM_ROUNDS}, () => [...draftOrder]).flat(); // 5 rounds
 
+      LADDER_POSITIONS = {};
+      standings.forEach(team => {
+        const clubId = SQUIGGLE_NAME_MAP[team.name];
+        if (clubId) LADDER_POSITIONS[clubId] = team.rank;
+      });
+
       const maxRound = Math.max(...standings.map(t => t.played || 0));
       statusEl.textContent = maxRound > 0
         ? `✓ Live ladder loaded — after Round ${maxRound}`
@@ -641,6 +648,8 @@
     } catch (err) {
       console.warn('ladder.json not found, using fallback order:', err.message);
       ALL_PICKS = Array.from({length: NUM_ROUNDS}, () => [...FALLBACK_ORDER]).flat(); // 5 rounds
+      LADDER_POSITIONS = {};
+      FALLBACK_ORDER.forEach((clubId, i) => { LADDER_POSITIONS[clubId] = 18 - i; }); // index 0 = worst = rank 18
       statusEl.textContent = '⚠ Using Round 9 ladder order';
       statusEl.style.color = 'var(--text-secondary)';
     }
@@ -808,7 +817,8 @@
     if (p.tied && p.tied !== biddingClubId) {
       const tiedClub      = getClub(p.tied);
       const tiedRemaining = getClubRemainingPickNumbers(p.tied, currentPick + 1);
-      const matchCost     = getMatchCost(bidPickIdx + 1);
+      const tiedRank      = LADDER_POSITIONS[p.tied] || 18;
+      const matchCost     = getMatchCost(bidPickIdx + 1, tiedRank);
       const bidValue      = getPickValue(bidPickIdx + 1);
 
       // Find which combination of picks covers the match cost
@@ -847,7 +857,7 @@
       document.getElementById('modal-body').innerHTML =
         `<strong>${biddingClub.name}</strong> bid on <strong>${p.name}</strong> with Pick ${bidPickIdx + 1}` +
         `${bidValue > 0 ? ` <span style="color:var(--text-tertiary)">(${bidValue}pts)</span>` : ''}.<br><br>` +
-        `Match cost: <strong>${matchCost}pts</strong> <span style="color:var(--text-tertiary)">(10% discount applied)</span><br><br>` +
+        `Match cost: <strong>${matchCost}pts</strong> <span style="color:var(--text-tertiary)">(${getMatchModifierLabel(tiedRank)})</span><br><br>` +
         `${dot} <strong>${tiedClub.name}</strong> would spend: ${picksDetail}<br>` +
         `<span style="color:var(--text-tertiary);font-size:12px;">Total value committed: ${totalSpent}pts</span>`;
 
