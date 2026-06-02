@@ -954,6 +954,7 @@
   function renderDraftBoard() {
     let html = '';
     let lastRoundLabel = null;
+    let compHeaderInserted = false;
     const pickInRndCounter = {};
 
     ALL_PICKS.forEach((clubId, idx) => {
@@ -966,12 +967,22 @@
       const dviValue   = typeof getPickValue === 'function' ? getPickValue(pickNum) : 0;
 
       if (roundLabel !== lastRoundLabel) {
+        // Always inject the comp section header before Round 2 if not already shown
+        if (roundLabel === '2' && !compHeaderInserted) {
+          compHeaderInserted = true;
+          html += `<div class="round-divider">End of First Round Compensation</div>`;
+          html += `<div style="font-size:11px;color:var(--text-tertiary);padding:4px 9px 6px;font-style:italic;">No compensation picks</div>`;
+        }
+
         lastRoundLabel = roundLabel;
         pickInRndCounter[roundLabel] = 0;
-        const dividerText = roundLabel === 'comp'
-          ? 'End of First Round Compensation'
-          : `Round ${roundLabel}`;
-        html += `<div class="round-divider">${dividerText}</div>`;
+
+        if (roundLabel === 'comp') {
+          compHeaderInserted = true;
+          html += `<div class="round-divider">End of First Round Compensation</div>`;
+        } else {
+          html += `<div class="round-divider">Round ${roundLabel}</div>`;
+        }
       }
 
       pickInRndCounter[roundLabel]++;
