@@ -64,6 +64,8 @@ const PICK_TRADES = [
   // TRANSFER example — one club gives their pick to another:
   // { type: 'transfer', round: 1, from: 'gcs', to: 'mel', note: 'GCS R1 → MEL' },
   { type: 'transfer', round: 1, from: 'gcs', to: 'mel', note: 'GCS R1 → MEL' },
+  { type: 'transfer', round: 1, from: 'syd', to: 'car', note: 'SYD R1 → CAR' },
+  { type: 'transfer', round: 1, from: 'wbd', to: 'por', note: 'WBD R1 → POR' },
 
 ];
 
