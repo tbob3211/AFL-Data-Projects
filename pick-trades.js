@@ -56,26 +56,15 @@
 
 const PICK_TRADES = [
 
-  // ── EXAMPLE (delete or replace with real trades) ──────────────
-  // Gold Coast trade their Round 1 pick to Melbourne
-  // {
-  //   type:  'transfer',
-  //   round: 1,
-  //   from:  'gcs',
-  //   to:    'mel',
-  //   note:  'GCS R1 → MEL',
-  // },
+  // ── ADD YOUR TRADES HERE ──────────────────────────────────────
+  //
+  // SWAP example — two clubs exchange their round picks:
+  // { type: 'swap', round: 1, clubA: 'gcs', clubB: 'mel', note: 'GCS R1 ↔ MEL R1' },
+  //
+  // TRANSFER example — one club gives their pick to another:
+  // { type: 'transfer', round: 1, from: 'gcs', to: 'mel', note: 'GCS R1 → MEL' },
+  { type: 'transfer', round: 1, from: 'gcs', to: 'mel', note: 'GCS R1 → MEL' },
 
-  // ── ADD YOUR REAL TRADES BELOW ────────────────────────────────
-
-    {
-    type:    'swap',
-    round:   1,          // which round (1–5)
-    clubA:   'gcs',      // first club's pick goes to clubB
-    clubB:   'mel',      // second club's pick goes to clubA
-    note:    'GCS R1 pick to MEL, MEL R1 pick to GCS',
-  }
- * 
 ];
 
 /**

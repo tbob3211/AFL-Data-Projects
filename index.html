@@ -472,6 +472,7 @@
 </div>
 
 <script src="draft-values.js"></script>
+<script src="pick-trades.js"></script>
 <script>
   /* ══════════════════════════════════════════
      DATA
@@ -1101,6 +1102,7 @@
     ]);
     PROSPECTS = prospects;
     compPicksAwarded.clear();
+    applyPickTrades(ALL_PICKS);
     PICK_ROUND_LABELS = buildPickLabels();
     draftResults = new Array(ALL_PICKS.length).fill(null);
     currentPick  = 0;
