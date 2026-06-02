@@ -765,17 +765,16 @@
     const toAward = top5InOrder
       .filter(clubId => !compPicksAwarded.has(clubId));
 
-    [...toAward].reverse().forEach((clubId, i) => {
+    toAward.forEach((clubId, i) => {
       const r2Start = getRound2StartIdx();
       ALL_PICKS.splice(r2Start, 0, clubId);
       draftResults.splice(r2Start, 0, null);
       PICK_ROUND_LABELS.splice(r2Start, 0, 'comp');
       compPicksAwarded.add(clubId);
       const club = getClub(clubId);
-      // Stagger toasts so they don't overlap
       setTimeout(() => {
-        showToast(`🔄 ${club.name} receive a Round 2 comp pick (top-5 displaced)`);
-      }, 700 + (toAward.length - 1 - i) * 1200);
+        showToast(`🔄 ${club.name} receive a compensation pick (top-5 displaced)`);
+      }, 700 + i * 1200);
     });
 
     render();
