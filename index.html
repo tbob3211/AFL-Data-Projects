@@ -649,7 +649,8 @@
      STATE
   ══════════════════════════════════════════ */
 
-  let draftResults  = new Array(ALL_PICKS.length).fill(null); // prospectId per pick slot
+  let draftResults      = new Array(ALL_PICKS.length).fill(null); // prospectId per pick slot
+  let PICK_ROUND_LABELS = []; // parallel to ALL_PICKS — '1','2',…,'5', or 'comp'
   let currentPick   = 0;
   let posFilter     = 'All';
   let sortMode      = 'rank'; // 'rank' | 'name'
@@ -704,12 +705,12 @@
   // Tied club matches the bid — insert them at bidPickIdx, remove their original pick
   // Returns the index in ALL_PICKS where Round 2 begins (after 18 slots)
   function getRound2StartIdx() {
-    let count = 0;
-    for (let i = 0; i < ALL_PICKS.length; i++) {
-      if (count === 18) return i;
-      count++;
-    }
-    return 18;
+    const idx = PICK_ROUND_LABELS.indexOf('2');
+    return idx === -1 ? ALL_PICKS.length : idx;
+  }
+
+  function buildPickLabels() {
+    return Array.from({length: NUM_ROUNDS}, (_, r) => new Array(18).fill(String(r + 1))).flat();
   }
 
   function matchBid(prospectId, bidPickIdx, tiedClubId, tiedPickIdx) {
@@ -729,13 +730,16 @@
     }
 
     // Insert tiedClub into the pick order at bidPickIdx
+    const bidRoundLabel = PICK_ROUND_LABELS[bidPickIdx];
     ALL_PICKS.splice(bidPickIdx, 0, tiedClubId);
     draftResults.splice(bidPickIdx, 0, null);
+    PICK_ROUND_LABELS.splice(bidPickIdx, 0, bidRoundLabel);
 
     // tiedPickIdx has shifted by 1 — remove it so tied club doesn't get extra pick
     const adjustedTiedIdx = tiedPickIdx + 1;
     ALL_PICKS.splice(adjustedTiedIdx, 1);
     draftResults.splice(adjustedTiedIdx, 1);
+    PICK_ROUND_LABELS.splice(adjustedTiedIdx, 1);
 
     // Assign the player to the matched pick slot
     draftResults[bidPickIdx] = prospectId;
@@ -754,6 +758,7 @@
       const r2Start = getRound2StartIdx();
       ALL_PICKS.splice(r2Start, 0, clubId);
       draftResults.splice(r2Start, 0, null);
+      PICK_ROUND_LABELS.splice(r2Start, 0, 'comp');
       compPicksAwarded.add(clubId);
       const club = getClub(clubId);
       // Stagger toasts so they don't overlap
@@ -948,23 +953,34 @@
 
   function renderDraftBoard() {
     let html = '';
-    ALL_PICKS.forEach((clubId, idx) => {
-      const club      = getClub(clubId);
-      const prospect  = draftResults[idx] ? getProspect(draftResults[idx]) : null;
-      const isCurrent = idx === currentPick && currentPick < ALL_PICKS.length;
-      const isHighlit = selectedClub && clubId === selectedClub;
-      const round     = Math.floor(idx / 18) + 1;
-      const pickInRnd = (idx % 18) + 1;
-      const pickNum   = idx + 1;
-      const dviValue  = typeof getPickValue === 'function' ? getPickValue(pickNum) : 0;
+    let lastRoundLabel = null;
+    const pickInRndCounter = {};
 
-      if (idx % 18 === 0) {
-        html += `<div class="round-divider">Round ${round}</div>`;
+    ALL_PICKS.forEach((clubId, idx) => {
+      const club       = getClub(clubId);
+      const prospect   = draftResults[idx] ? getProspect(draftResults[idx]) : null;
+      const isCurrent  = idx === currentPick && currentPick < ALL_PICKS.length;
+      const isHighlit  = selectedClub && clubId === selectedClub;
+      const roundLabel = PICK_ROUND_LABELS[idx] || '1';
+      const pickNum    = idx + 1;
+      const dviValue   = typeof getPickValue === 'function' ? getPickValue(pickNum) : 0;
+
+      if (roundLabel !== lastRoundLabel) {
+        lastRoundLabel = roundLabel;
+        pickInRndCounter[roundLabel] = 0;
+        const dividerText = roundLabel === 'comp'
+          ? 'End of First Round Compensation'
+          : `Round ${roundLabel}`;
+        html += `<div class="round-divider">${dividerText}</div>`;
       }
+
+      pickInRndCounter[roundLabel]++;
+      const pickInRnd  = pickInRndCounter[roundLabel];
+      const pickPrefix = roundLabel === 'comp' ? 'C' : `R${roundLabel}`;
 
       html += `<div class="pick-row${isCurrent ? ' current-pick' : ''}${isHighlit ? ' highlighted' : ''}">
         <span class="pick-num" style="color:${isCurrent ? 'var(--text-info)' : 'var(--text-tertiary)'}">
-          R${round}.${String(pickInRnd).padStart(2,'0')}
+          ${pickPrefix}.${String(pickInRnd).padStart(2,'0')}
         </span>
         <div class="pick-club-dot" style="background:${club.color};color:${club.text}">${club.short}</div>
         <span class="pick-club-name">${club.name}</span>
@@ -986,19 +1002,23 @@
   function updateProgress() {
     const made  = draftResults.filter(Boolean).length;
     const total = ALL_PICKS.length;
-    const madeR1 = draftResults.slice(0, 18).filter(Boolean).length;
-    const madeR2 = draftResults.slice(18).filter(Boolean).length;
+
+    const r1Total = PICK_ROUND_LABELS.filter(l => l === '1').length;
+    const r2Total = PICK_ROUND_LABELS.filter(l => l === '2').length;
+    const madeR1  = draftResults.filter((r, i) => r && PICK_ROUND_LABELS[i] === '1').length;
+    const madeR2  = draftResults.filter((r, i) => r && PICK_ROUND_LABELS[i] === '2').length;
 
     document.getElementById('progress-fill').style.width = `${Math.round(made / total * 100)}%`;
     document.getElementById('progress-text').textContent = `${made} / ${total} picks made`;
-    document.getElementById('round-label').textContent   = `R1: ${madeR1}/18 · R2: ${madeR2}/18`;
+    document.getElementById('round-label').textContent   = `R1: ${madeR1}/${r1Total} · R2: ${madeR2}/${r2Total}`;
 
     const badge = document.getElementById('current-pick-badge');
     if (currentPick < total) {
-      const club      = getClub(ALL_PICKS[currentPick]);
-      const round     = currentPick < 18 ? 1 : 2;
-      const pickInRnd = currentPick < 18 ? currentPick + 1 : currentPick - 17;
-      badge.textContent = `Pick ${currentPick + 1} — ${club.name} (R${round}.${pickInRnd})`;
+      const club       = getClub(ALL_PICKS[currentPick]);
+      const roundLabel = PICK_ROUND_LABELS[currentPick] || '1';
+      const pickInRnd  = PICK_ROUND_LABELS.slice(0, currentPick + 1).filter(l => l === roundLabel).length;
+      const roundStr   = roundLabel === 'comp' ? 'Comp' : `R${roundLabel}`;
+      badge.textContent = `Pick ${currentPick + 1} — ${club.name} (${roundStr}.${pickInRnd})`;
       badge.classList.remove('complete');
     } else {
       badge.textContent = 'Draft complete!';
@@ -1042,6 +1062,7 @@
     ]);
     PROSPECTS = prospects;
     compPicksAwarded.clear();
+    PICK_ROUND_LABELS = buildPickLabels();
     draftResults = new Array(ALL_PICKS.length).fill(null);
     currentPick  = 0;
     render();
