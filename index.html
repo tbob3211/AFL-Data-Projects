@@ -694,12 +694,15 @@
      BID MATCHING SYSTEM
   ══════════════════════════════════════════ */
 
-  // Find the earliest unused pick index for a given club (after current pick)
-  function getEarliestPick(clubId, afterIdx) {
+  // Returns [{idx, pickNum}] for all remaining unused picks belonging to a club after afterIdx
+  function getClubRemainingPickNumbers(clubId, afterIdx) {
+    const picks = [];
     for (let i = afterIdx; i < ALL_PICKS.length; i++) {
-      if (ALL_PICKS[i] === clubId && !draftResults[i]) return i;
+      if (ALL_PICKS[i] === clubId && !draftResults[i]) {
+        picks.push({ idx: i, pickNum: i + 1 });
+      }
     }
-    return -1; // club has no remaining picks
+    return picks;
   }
 
   // Tied club matches the bid — insert them at bidPickIdx, remove their original pick
@@ -713,13 +716,12 @@
     return Array.from({length: NUM_ROUNDS}, (_, r) => new Array(18).fill(String(r + 1))).flat();
   }
 
-  function matchBid(prospectId, bidPickIdx, tiedClubId, tiedPickIdx) {
-    const p             = getProspect(prospectId);
-    const tiedClub      = getClub(tiedClubId);
+  // pickIndicesToSpend: array of indices in ALL_PICKS (before the insert) to remove
+  function matchBid(prospectId, bidPickIdx, tiedClubId, pickIndicesToSpend) {
+    const p        = getProspect(prospectId);
+    const tiedClub = getClub(tiedClubId);
 
-    // Before splicing, record which clubs hold picks 1-5 (indices 0-4) in order.
-    // We store them as an ordered array (index 0 = pick 1, index 1 = pick 2, etc.)
-    // so we know who was displaced most severely.
+    // Record top-5 displaced clubs before any splicing
     const top5InOrder = [];
     if (bidPickIdx <= 4) {
       for (let i = 0; i <= 4 && i < ALL_PICKS.length; i++) {
@@ -735,17 +737,25 @@
     draftResults.splice(bidPickIdx, 0, null);
     PICK_ROUND_LABELS.splice(bidPickIdx, 0, bidRoundLabel);
 
-    // tiedPickIdx has shifted by 1 — remove it so tied club doesn't get extra pick
-    const adjustedTiedIdx = tiedPickIdx + 1;
-    ALL_PICKS.splice(adjustedTiedIdx, 1);
-    draftResults.splice(adjustedTiedIdx, 1);
-    PICK_ROUND_LABELS.splice(adjustedTiedIdx, 1);
+    // All indices after bidPickIdx have shifted +1 — remove spent picks in descending order
+    // so that earlier removals don't affect the positions of later ones
+    const adjustedIndices = pickIndicesToSpend
+      .map(i => i + 1)
+      .sort((a, b) => b - a);
+    for (const adjIdx of adjustedIndices) {
+      ALL_PICKS.splice(adjIdx, 1);
+      draftResults.splice(adjIdx, 1);
+      PICK_ROUND_LABELS.splice(adjIdx, 1);
+    }
 
-    // Assign the player to the matched pick slot
+    // Assign player to bid slot
     draftResults[bidPickIdx] = prospectId;
     currentPick = bidPickIdx + 1;
 
-    showToast(`${tiedClub.name} MATCH — ${p.name} joins ${tiedClub.name}`);
+    const spentStr = pickIndicesToSpend.length
+      ? ` (spent ${pickIndicesToSpend.map(i => `Pick ${i + 1}`).join(', ')})`
+      : '';
+    showToast(`${tiedClub.name} MATCH — ${p.name} joins ${tiedClub.name}${spentStr}`);
 
     // Award comp picks in REVERSE order so that when inserted at r2Start,
     // the club with the highest pick (pick 1) ends up FIRST in Round 2.
@@ -796,32 +806,50 @@
 
     // Check if player is tied to a different club
     if (p.tied && p.tied !== biddingClubId) {
-      const tiedClub    = getClub(p.tied);
-      const tiedPickIdx = getEarliestPick(p.tied, currentPick + 1);
+      const tiedClub      = getClub(p.tied);
+      const tiedRemaining = getClubRemainingPickNumbers(p.tied, currentPick + 1);
+      const matchCost     = getMatchCost(bidPickIdx + 1);
+      const bidValue      = getPickValue(bidPickIdx + 1);
 
-      // Tied club has no picks remaining — bid stands automatically
-      if (tiedPickIdx === -1) {
+      // Find which combination of picks covers the match cost
+      const pickNumsToSpend = tiedRemaining.length > 0
+        ? findMatchingPicks(tiedRemaining.map(r => r.pickNum), matchCost)
+        : null;
+
+      // Tied club can't match — bid stands automatically
+      if (!pickNumsToSpend) {
+        const reason = tiedRemaining.length === 0 ? 'no remaining picks' : 'insufficient pick value';
         draftResults[bidPickIdx] = prospectId;
         currentPick++;
-        showToast(`${tiedClub.name} have no picks to match — ${biddingClub.name} keep ${p.name}`);
+        showToast(`${tiedClub.name} cannot match (${reason}) — ${biddingClub.name} keep ${p.name}`);
         render();
         return;
       }
 
+      // Convert pick numbers back to ALL_PICKS indices
+      const pickIndicesToSpend = pickNumsToSpend.map(pn =>
+        tiedRemaining.find(r => r.pickNum === pn).idx
+      );
+
       if (autoMatch) {
-        // Auto mode: tied club always matches
-        matchBid(prospectId, bidPickIdx, p.tied, tiedPickIdx);
+        matchBid(prospectId, bidPickIdx, p.tied, pickIndicesToSpend);
         return;
       }
 
-      // Manual mode: show bid modal
+      // Manual mode: show bid modal with full cost breakdown
+      const totalSpent  = pickNumsToSpend.reduce((s, pn) => s + getPickValue(pn), 0);
+      const picksDetail = pickNumsToSpend
+        .map(pn => `Pick ${pn} <span style="color:var(--text-tertiary)">(${getPickValue(pn)}pts)</span>`)
+        .join(', ');
+
       const dot = `<span class="modal-club-dot" style="background:${tiedClub.color};color:${tiedClub.text}">${tiedClub.short}</span>`;
       document.getElementById('modal-title').textContent = 'Academy / Father-Son Bid';
       document.getElementById('modal-body').innerHTML =
-        `<strong>${biddingClub.name}</strong> have bid on <strong>${p.name}</strong> with Pick ${bidPickIdx + 1}.<br><br>` +
-        `${dot}<strong>${tiedClub.name}</strong> can match this bid using their Pick ${tiedPickIdx + 1}, ` +
-        `moving up to Pick ${bidPickIdx + 1}.<br><br>` +
-        `If matched, <strong>${biddingClub.name}</strong> will continue from Pick ${bidPickIdx + 2} onward.`;
+        `<strong>${biddingClub.name}</strong> bid on <strong>${p.name}</strong> with Pick ${bidPickIdx + 1}` +
+        `${bidValue > 0 ? ` <span style="color:var(--text-tertiary)">(${bidValue}pts)</span>` : ''}.<br><br>` +
+        `Match cost: <strong>${matchCost}pts</strong> <span style="color:var(--text-tertiary)">(10% discount applied)</span><br><br>` +
+        `${dot} <strong>${tiedClub.name}</strong> would spend: ${picksDetail}<br>` +
+        `<span style="color:var(--text-tertiary);font-size:12px;">Total value committed: ${totalSpent}pts</span>`;
 
       // Clone buttons to remove any previous event listeners
       const matchBtn   = document.getElementById('modal-match');
@@ -833,7 +861,7 @@
 
       newMatch.addEventListener('click', () => {
         closeModal();
-        matchBid(prospectId, bidPickIdx, p.tied, tiedPickIdx);
+        matchBid(prospectId, bidPickIdx, p.tied, pickIndicesToSpend);
       });
       newDecline.addEventListener('click', () => {
         closeModal();
