@@ -714,6 +714,7 @@
   let selectedClub  = null;  // clubId string or null
   let pickHistory   = [];    // snapshots for undo
   let activeRightTab = 'draft-board';
+  let clubDeficits   = {}; // clubId → DVI deficit points accrued this draft
 
   const PASSED = -1; // sentinel stored in draftResults to mark a passed pick
 
@@ -762,11 +763,12 @@
   function saveSnapshot(prospectId) {
     pickHistory.push({
       prospectId,
-      allPicks:        [...ALL_PICKS],
+      allPicks:         [...ALL_PICKS],
       draftResultsSnap: [...draftResults],
-      roundLabels:     [...PICK_ROUND_LABELS],
-      currentPickSnap: currentPick,
-      compPicksSnap:   [...compPicksAwarded],
+      roundLabels:      [...PICK_ROUND_LABELS],
+      currentPickSnap:  currentPick,
+      compPicksSnap:    [...compPicksAwarded],
+      clubDeficitsSnap: { ...clubDeficits },
     });
   }
 
@@ -777,6 +779,7 @@
     draftResults      = snap.draftResultsSnap;
     PICK_ROUND_LABELS = snap.roundLabels;
     currentPick       = snap.currentPickSnap;
+    clubDeficits      = snap.clubDeficitsSnap || {};
     compPicksAwarded.clear();
     snap.compPicksSnap.forEach(id => compPicksAwarded.add(id));
     const label = snap.prospectId === PASSED
@@ -831,9 +834,12 @@
   }
 
   // pickIndicesToSpend: array of indices in ALL_PICKS (before the insert) to remove
-  function matchBid(prospectId, bidPickIdx, tiedClubId, pickIndicesToSpend) {
+  function matchBid(prospectId, bidPickIdx, tiedClubId, pickIndicesToSpend, deficitPoints = 0) {
     const p        = getProspect(prospectId);
     const tiedClub = getClub(tiedClubId);
+    if (deficitPoints > 0) {
+      clubDeficits[tiedClubId] = (clubDeficits[tiedClubId] || 0) + deficitPoints;
+    }
 
     // Record top-5 displaced clubs before any splicing
     const top5InOrder = [];
@@ -866,10 +872,11 @@
     draftResults[bidPickIdx] = prospectId;
     currentPick = bidPickIdx + 1;
 
-    const spentStr = pickIndicesToSpend.length
+    const spentStr   = pickIndicesToSpend.length
       ? ` (spent ${pickIndicesToSpend.map(i => `Pick ${i + 1}`).join(', ')})`
       : '';
-    showToast(`${tiedClub.name} MATCH — ${p.name} joins ${tiedClub.name}${spentStr}`);
+    const deficitStr = deficitPoints > 0 ? ` [${deficitPoints}pts deficit]` : '';
+    showToast(`${tiedClub.name} MATCH — ${p.name} joins ${tiedClub.name}${spentStr}${deficitStr}`);
 
     // Award comp picks in REVERSE order so that when inserted at r2Start,
     // the club with the highest pick (pick 1) ends up FIRST in Round 2.
@@ -922,19 +929,47 @@
     // Check if player is tied to a different club
     if (p.tied && p.tied !== biddingClubId) {
       const tiedClub      = getClub(p.tied);
+      const bidPickNum    = bidPickIdx + 1;
+      const isEarlyBid    = bidPickNum <= 36;
+      const maxPicks      = isEarlyBid ? 2 : 1;
       const tiedRemaining = getClubRemainingPickNumbers(p.tied, currentPick + 1);
       const tiedRank      = LADDER_POSITIONS[p.tied] || 18;
-      const matchCost     = getMatchCost(bidPickIdx + 1, tiedRank);
-      const bidValue      = getPickValue(bidPickIdx + 1);
+      const matchCost     = getMatchCost(bidPickNum, tiedRank);
+      const bidValue      = getPickValue(bidPickNum);
 
-      // Find which combination of picks covers the match cost
-      const pickNumsToSpend = tiedRemaining.length > 0
-        ? findMatchingPicks(tiedRemaining.map(r => r.pickNum), matchCost)
-        : null;
+      // For bids at pick 37+, the club simply uses their next pick — no points check
+      const picksPool     = isEarlyBid ? tiedRemaining : tiedRemaining.slice(0, 1);
+      const availPickNums = picksPool.map(r => r.pickNum);
+
+      let pickNumsToSpend = picksPool.length === 0
+        ? null
+        : isEarlyBid
+          ? findMatchingPicks(availPickNums, matchCost, maxPicks)
+          : [availPickNums[0]]; // next pick used automatically, no value threshold
+
+      let deficitPoints = 0;
+
+      // Check if a draft deficit (≤ 412 DVI) can cover any remaining shortfall
+      // Deficits are only available for bids placed at picks 1–36
+      if (!pickNumsToSpend && picksPool.length > 0 && isEarlyBid) {
+        const candidatePicks = availPickNums
+          .map(n => ({ pick: n, value: getPickValue(n) }))
+          .filter(cp => cp.value > 0)
+          .sort((a, b) => b.value - a.value)
+          .slice(0, maxPicks);
+        const availableValue = candidatePicks.reduce((s, cp) => s + cp.value, 0);
+        const shortfall = matchCost - availableValue;
+        if (shortfall > 0 && shortfall <= DRAFT_DEFICIT_LIMIT) {
+          deficitPoints   = shortfall;
+          pickNumsToSpend = candidatePicks.map(cp => cp.pick);
+        }
+      }
 
       // Tied club can't match — bid stands automatically
       if (!pickNumsToSpend) {
-        const reason = tiedRemaining.length === 0 ? 'no remaining picks' : 'insufficient pick value';
+        const reason = isEarlyBid
+          ? 'insufficient value within 2-pick limit'
+          : 'no remaining picks';
         draftResults[bidPickIdx] = prospectId;
         currentPick++;
         showToast(`${tiedClub.name} cannot match (${reason}) — ${biddingClub.name} keep ${p.name}`);
@@ -948,7 +983,7 @@
       );
 
       if (autoMatch) {
-        matchBid(prospectId, bidPickIdx, p.tied, pickIndicesToSpend);
+        matchBid(prospectId, bidPickIdx, p.tied, pickIndicesToSpend, deficitPoints);
         return;
       }
 
@@ -957,17 +992,24 @@
       const picksDetail = pickNumsToSpend
         .map(pn => `Pick ${pn} <span style="color:var(--text-tertiary)">(${getPickValue(pn)}pts)</span>`)
         .join(', ');
+      const pickLimitNote = isEarlyBid
+        ? `<span style="color:var(--text-tertiary);font-size:12px;">Max 2 picks for bids at picks 1–36</span>`
+        : `<span style="color:var(--text-tertiary);font-size:12px;">Next pick used automatically — no points threshold for bids at pick 37+</span>`;
+      const deficitNote = deficitPoints > 0
+        ? `<br><span style="color:var(--text-danger);font-size:12px;">⚠ Draft deficit: ${deficitPoints} DVI pts — deducted from next year's R1 pick (requires holding a future R1)</span>`
+        : '';
 
       const dot = `<span class="modal-club-dot" style="background:${tiedClub.color};color:${tiedClub.text}">${tiedClub.short}</span>`;
       document.getElementById('modal-title').textContent = 'Academy / Father-Son Bid';
       document.getElementById('modal-body').innerHTML =
-        `<strong>${biddingClub.name}</strong> bid on <strong>${p.name}</strong> with Pick ${bidPickIdx + 1}` +
+        `<strong>${biddingClub.name}</strong> bid on <strong>${p.name}</strong> with Pick ${bidPickNum}` +
         `${bidValue > 0 ? ` <span style="color:var(--text-tertiary)">(${bidValue}pts)</span>` : ''}.<br><br>` +
-        `Match cost: <strong>${matchCost}pts</strong> <span style="color:var(--text-tertiary)">(${getMatchModifierLabel(tiedRank)})</span><br><br>` +
+        `Match cost: <strong>${matchCost}pts</strong> <span style="color:var(--text-tertiary)">(${getMatchModifierLabel(tiedRank, bidPickNum)})</span><br>` +
+        `${pickLimitNote}<br><br>` +
         `${dot} <strong>${tiedClub.name}</strong> would spend: ${picksDetail}<br>` +
-        `<span style="color:var(--text-tertiary);font-size:12px;">Total value committed: ${totalSpent}pts</span>`;
+        `<span style="color:var(--text-tertiary);font-size:12px;">Total value committed: ${totalSpent}pts</span>` +
+        deficitNote;
 
-      // Clone buttons to remove any previous event listeners
       const matchBtn   = document.getElementById('modal-match');
       const declineBtn = document.getElementById('modal-decline');
       const newMatch   = matchBtn.cloneNode(true);
@@ -977,7 +1019,7 @@
 
       newMatch.addEventListener('click', () => {
         closeModal();
-        matchBid(prospectId, bidPickIdx, p.tied, pickIndicesToSpend);
+        matchBid(prospectId, bidPickIdx, p.tied, pickIndicesToSpend, deficitPoints);
       });
       newDecline.addEventListener('click', () => {
         closeModal();
@@ -1040,13 +1082,17 @@
 
   function renderClubList() {
     document.getElementById('club-list').innerHTML = CLUBS.map(club => {
-      const picks = getClubPicks(club.id);
-      const made  = picks.filter(p => p.prospectId).length;
+      const picks   = getClubPicks(club.id);
+      const made    = picks.filter(p => p.prospectId).length;
+      const deficit = clubDeficits[club.id] || 0;
+      const deficitBadge = deficit > 0
+        ? ` · <span style="color:var(--text-danger)">${deficit}pts deficit</span>`
+        : '';
       return `<div class="club-card${selectedClub === club.id ? ' active' : ''}" onclick="selectClub('${club.id}')">
         <div class="club-dot" style="background:${club.color};color:${club.text}">${club.short}</div>
         <div class="club-info">
           <div class="club-name">${club.name}</div>
-          <div class="club-picks-count">${made}/${picks.length} picks used</div>
+          <div class="club-picks-count">${made}/${picks.length} picks used${deficitBadge}</div>
         </div>
       </div>`;
     }).join('');
@@ -1187,11 +1233,15 @@
     CLUBS.forEach(club => {
       const allPicks   = getClubPicks(club.id);
       const made       = allPicks.filter(p => p.prospectId && p.prospectId !== PASSED);
+      const deficit = clubDeficits[club.id] || 0;
+      const deficitTag = deficit > 0
+        ? ` <span style="font-size:11px;color:var(--text-danger);">${deficit}pts deficit</span>`
+        : '';
       html += `<div class="cs-section">
         <div class="cs-header">
           <div class="club-dot" style="background:${club.color};color:${club.text};width:22px;height:22px;font-size:8px;">${club.short}</div>
           <span class="cs-club-name">${club.name}</span>
-          <span class="cs-count">${made.length} of ${allPicks.length} picks used</span>
+          <span class="cs-count">${made.length} of ${allPicks.length} picks used</span>${deficitTag}
         </div>`;
       if (made.length) {
         html += `<div class="cs-list">` + made.map(pk => {
@@ -1246,6 +1296,7 @@
   document.getElementById('reset-btn').addEventListener('click', () => {
     pickHistory  = [];
     compPicksAwarded.clear();
+    clubDeficits = {};
     draftResults = new Array(ALL_PICKS.length).fill(null);
     currentPick  = 0;
     selectedClub = null;

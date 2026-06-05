@@ -1,17 +1,24 @@
 /**
- * AFL Draft Value Index (DVI) — 2025 Edition
- * --------------------------------------------
+ * AFL Draft Value Index (DVI) — 2025 Edition (2026 bidding rules)
+ * ----------------------------------------------------------------
  * Source: AFL.com.au official Draft Value Index
  * Points are assigned to picks 1–54 only.
  * Every pick from 55 onward has a value of 0.
  *
- * Bid match cost is scaled by the tied club's ladder position:
- *   Positions 11–18 : 10% discount  (× 0.90)
- *   Positions  5–10 : no adjustment (× 1.00)
- *   Positions  3– 4 : 10% loading   (× 1.10)
- *   Positions  1– 2 : 20% loading   (× 1.20)
+ * 2026 pick-limit rules:
+ *   Bids at picks  1–36 : matching club may use at most 2 picks
+ *   Bids at pick  37+   : matching club may use only their very next pick
  *
- * Picks 55+ are worth 0 pts and cannot be used to match bids.
+ * Loading/discount applied to the DVI match cost (2026):
+ *   Positions  1– 2 : 20% loading  — bids placed at picks 1–18 only
+ *   Positions  3– 4 : 10% loading  — bids placed at picks 1–18 only
+ *   Positions  5–10 : no adjustment
+ *   Positions 11–18 : 10% discount — bids placed at picks 1–36 only
+ *   (From 2027: positions 11–19 for the discount band)
+ *
+ * Draft deficit (2026): clubs may accrue up to 412 DVI deficit points.
+ * The deficit requires holding a first-round pick in the following year's
+ * draft, and is deducted from that pick.
  */
 
 const DRAFT_VALUE_INDEX = {
@@ -71,6 +78,9 @@ const DRAFT_VALUE_INDEX = {
   54:   14,
 };
 
+/** Maximum DVI points a club can accrue as a draft deficit in 2026. */
+const DRAFT_DEFICIT_LIMIT = 412;
+
 /**
  * Get the DVI value for a given pick number.
  * Returns 0 for picks outside the 1–54 range.
@@ -80,55 +90,73 @@ function getPickValue(pickNumber) {
 }
 
 /**
- * Returns the cost multiplier for a club based on their ladder position.
+ * Returns the cost multiplier for a club based on their ladder position
+ * AND the pick number at which the bid was placed.
  * ladderRank 1 = top of ladder, 18 = bottom.
  */
-function getMatchMultiplier(ladderRank) {
-  if (!ladderRank || ladderRank >= 11) return 0.90; // 10% discount
-  if (ladderRank >= 5)                 return 1.00; // no adjustment
-  if (ladderRank >= 3)                 return 1.10; // 10% loading
-  return 1.20;                                       // 20% loading (rank 1–2)
+function getMatchMultiplier(ladderRank, bidPickNumber) {
+  if (!ladderRank || ladderRank >= 11) {
+    // 10% discount applies only for bids placed at picks 1–36
+    return bidPickNumber <= 36 ? 0.90 : 1.00;
+  }
+  if (ladderRank >= 5) return 1.00; // no adjustment
+  if (ladderRank >= 3) {
+    // 10% loading applies only for bids placed at picks 1–18
+    return bidPickNumber <= 18 ? 1.10 : 1.00;
+  }
+  // 20% loading applies only for bids placed at picks 1–18 (ranks 1–2)
+  return bidPickNumber <= 18 ? 1.20 : 1.00;
 }
 
 /**
  * Returns a human-readable label for the modifier applied.
  */
-function getMatchModifierLabel(ladderRank) {
-  if (!ladderRank || ladderRank >= 11) return '10% discount (ladder positions 11–18)';
-  if (ladderRank >= 5)                 return 'no adjustment (ladder positions 5–10)';
-  if (ladderRank >= 3)                 return '10% loading (ladder positions 3–4)';
-  return '20% loading (ladder positions 1–2)';
+function getMatchModifierLabel(ladderRank, bidPickNumber) {
+  if (!ladderRank || ladderRank >= 11) {
+    return bidPickNumber <= 36
+      ? '10% discount (positions 11–18, bids at picks 1–36)'
+      : 'no adjustment (bid at pick 37+)';
+  }
+  if (ladderRank >= 5) return 'no adjustment (positions 5–10)';
+  if (ladderRank >= 3) {
+    return bidPickNumber <= 18
+      ? '10% loading (positions 3–4, bids at picks 1–18)'
+      : 'no adjustment (bid at pick 19+)';
+  }
+  return bidPickNumber <= 18
+    ? '20% loading (positions 1–2, bids at picks 1–18)'
+    : 'no adjustment (bid at pick 19+)';
 }
 
 /**
- * Calculate how many points a club needs to spend to match a bid.
- * ladderRank: the tied club's ladder position (1=top, 18=bottom).
+ * Calculate how many DVI points a club needs to spend to match a bid.
+ * Both the ladder rank and the bid pick number affect the cost.
  */
 function getMatchCost(bidPickNumber, ladderRank) {
   const bidValue = getPickValue(bidPickNumber);
-  return Math.ceil(bidValue * getMatchMultiplier(ladderRank));
+  return Math.ceil(bidValue * getMatchMultiplier(ladderRank, bidPickNumber));
 }
 
 /**
- * Given a club's remaining pick numbers, find the
- * cheapest combination of picks that meets the cost to match.
- * Returns the pick numbers to be used, or null if impossible.
+ * Find the combination of picks that meets the cost to match a bid.
+ * maxPicks: maximum number of picks that may be spent (default unlimited).
+ *   - Pass 2 for bids placed at picks 1–36.
+ *   - Pass 1 for bids placed at pick 37+ (next-pick-only rule).
+ * Returns the pick numbers to use, or null if the cost cannot be met.
  */
-function findMatchingPicks(availablePickNumbers, costRequired) {
-  // Sort picks by value descending (spend most valuable first)
+function findMatchingPicks(availablePickNumbers, costRequired, maxPicks = Infinity) {
   const picks = availablePickNumbers
     .map(n => ({ pick: n, value: getPickValue(n) }))
     .filter(p => p.value > 0)
     .sort((a, b) => b.value - a.value);
 
-  // Greedy: use picks from most to least valuable until cost met
   let remaining = costRequired;
   const used = [];
   for (const p of picks) {
-    if (remaining <= 0) break;
+    if (remaining <= 0 || used.length >= maxPicks) break;
     used.push(p.pick);
     remaining -= p.value;
   }
 
-  return remaining <= 0 ? used : null; // null = cannot match
+  return remaining <= 0 ? used : null;
 }
