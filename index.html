@@ -3,1122 +3,416 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>2026 AFL Draft Simulator</title>
+  <title>AFL Data Projects</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg-primary: #ffffff;
-      --bg-secondary: #f5f5f4;
-      --bg-tertiary: #eeede9;
-      --bg-info: #e6f1fb;
-      --bg-danger: #fcebeb;
-      --bg-success: #eaf3de;
-      --text-primary: #1a1a1a;
-      --text-secondary: #6b6b6b;
-      --text-tertiary: #a0a0a0;
-      --text-info: #185fa5;
-      --text-danger: #a32d2d;
-      --text-success: #3b6d11;
-      --border-light: rgba(0,0,0,0.1);
-      --border-mid: rgba(0,0,0,0.18);
-      --border-strong: rgba(0,0,0,0.28);
-      --border-info: rgba(24,95,165,0.4);
-      --border-danger: rgba(163,45,45,0.4);
-      --radius-md: 8px;
-      --radius-lg: 12px;
-      --radius-xl: 16px;
-    }
-
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg-primary: #1c1c1c;
-        --bg-secondary: #252525;
-        --bg-tertiary: #2e2e2e;
-        --bg-info: #0c2a45;
-        --bg-danger: #3a1212;
-        --bg-success: #162a08;
-        --text-primary: #f0efeb;
-        --text-secondary: #a0a09a;
-        --text-tertiary: #666660;
-        --text-info: #85b7eb;
-        --text-danger: #f09595;
-        --text-success: #97c459;
-        --border-light: rgba(255,255,255,0.08);
-        --border-mid: rgba(255,255,255,0.14);
-        --border-strong: rgba(255,255,255,0.22);
-        --border-info: rgba(133,183,235,0.35);
-        --border-danger: rgba(240,149,149,0.35);
-      }
+      --green:       #00a651;
+      --green-dark:  #007a3c;
+      --navy:        #0c1820;
+      --navy-mid:    #18283a;
+      --white:       #ffffff;
+      --text-head:   #111827;
+      --text-body:   #4b5563;
+      --text-muted:  #9ca3af;
+      --bg:          #f4f6f9;
+      --border:      rgba(0,0,0,0.07);
+      --radius:      14px;
     }
 
     body {
       font-family: 'Inter', system-ui, sans-serif;
-      background: var(--bg-tertiary);
-      color: var(--text-primary);
+      background: var(--bg);
+      color: var(--text-head);
       min-height: 100vh;
-      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
     }
 
-    h1, h2, h3 { font-weight: 500; }
+    /* ── Hero ─────────────────────────────────────────────── */
+    .hero {
+      background: var(--navy);
+      background-image:
+        radial-gradient(ellipse 90% 55% at 50% -10%, rgba(0,166,81,0.2) 0%, transparent 65%),
+        radial-gradient(ellipse 55% 45% at 85% 110%, rgba(0,60,140,0.2) 0%, transparent 60%);
+      padding: 5.5rem 1.5rem 4.5rem;
+      text-align: center;
+      position: relative;
+    }
 
-    /* ── App shell ───────────────────────────────────────── */
-    .app {
-      max-width: 1200px;
+    .hero::after {
+      content: '';
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.07) 50%, transparent);
+    }
+
+    .hero-inner { max-width: 600px; margin: 0 auto; }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--green);
+      background: rgba(0,166,81,0.11);
+      border: 0.5px solid rgba(0,166,81,0.28);
+      padding: 5px 14px;
+      border-radius: 20px;
+      margin-bottom: 1.75rem;
+    }
+
+    .hero-badge-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    .hero-title {
+      font-size: clamp(2.2rem, 6vw, 3.6rem);
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: -0.03em;
+      line-height: 1.08;
+      margin-bottom: 1.1rem;
+    }
+
+    .hero-sub {
+      font-size: 1.05rem;
+      color: rgba(255,255,255,0.48);
+      line-height: 1.7;
+      max-width: 440px;
       margin: 0 auto;
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
     }
 
-    .app-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 12px;
-      padding: 1rem 1.25rem;
-      background: var(--bg-primary);
-      border-radius: var(--radius-lg);
-      border: 0.5px solid var(--border-light);
+    /* ── Main ─────────────────────────────────────────────── */
+    .main {
+      max-width: 1020px;
+      margin: 0 auto;
+      padding: 3.5rem 1.5rem 4.5rem;
+      flex: 1;
+      width: 100%;
     }
 
-    .app-header h1 { font-size: 18px; color: var(--text-primary); }
-    .app-header p  { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
-
-    .controls { display: flex; gap: 8px; flex-wrap: wrap; }
-
-    .btn {
-      padding: 7px 14px;
-      border-radius: var(--radius-md);
-      border: 0.5px solid var(--border-mid);
-      background: transparent;
-      color: var(--text-primary);
-      cursor: pointer;
-      font-size: 13px;
-      font-family: inherit;
-      transition: background 0.12s;
-    }
-    .btn:hover   { background: var(--bg-secondary); }
-    .btn.primary { background: var(--bg-info); border-color: var(--border-info); color: var(--text-info); }
-    .btn.primary:hover { opacity: 0.85; }
-    .btn.danger  { background: var(--bg-danger); border-color: var(--border-danger); color: var(--text-danger); }
-    .btn.danger:hover { opacity: 0.85; }
-
-    /* ── Progress bar ────────────────────────────────────── */
-    .progress-wrap {
-      padding: 0.75rem 1.25rem;
-      background: var(--bg-secondary);
-      border-radius: var(--radius-lg);
-      border: 0.5px solid var(--border-light);
+    .section-head {
       display: flex;
       align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
+      gap: 14px;
+      margin-bottom: 1.75rem;
     }
-    .progress-info { flex: 1; min-width: 160px; }
-    .progress-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
-    .progress-bar { height: 4px; background: var(--border-light); border-radius: 2px; }
-    .progress-fill { height: 100%; border-radius: 2px; background: #378ADD; transition: width 0.3s; }
-    .pick-badge {
-      font-size: 12px;
-      padding: 5px 12px;
-      border-radius: var(--radius-md);
-      background: var(--bg-info);
-      color: var(--text-info);
-      border: 0.5px solid var(--border-info);
-      font-weight: 500;
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
       white-space: nowrap;
     }
-    .pick-badge.complete {
-      background: var(--bg-success);
-      color: var(--text-success);
-      border-color: rgba(59,109,17,0.35);
+
+    .section-rule {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
     }
 
-    /* ── Main grid ───────────────────────────────────────── */
-    .main-grid {
+    /* ── Cards ────────────────────────────────────────────── */
+    .grid {
       display: grid;
-      grid-template-columns: 260px 1fr 1fr;
-      gap: 1rem;
-      align-items: start;
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      gap: 1.25rem;
     }
 
-    @media (max-width: 900px) {
-      .main-grid { grid-template-columns: 1fr 1fr; }
-      .sidebar { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
-      .sidebar h2 { grid-column: 1 / -1; }
-    }
-    @media (max-width: 560px) {
-      .main-grid { grid-template-columns: 1fr; }
-      body { padding: 0.75rem; }
-    }
-
-    /* ── Sidebar ─────────────────────────────────────────── */
-    .sidebar {
-      background: var(--bg-primary);
-      border-radius: var(--radius-lg);
-      border: 0.5px solid var(--border-light);
-      padding: 1rem;
+    .card {
+      background: var(--white);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem 1.5rem 1.25rem;
       display: flex;
       flex-direction: column;
-      gap: 4px;
-      max-height: 700px;
-      overflow-y: auto;
+      gap: 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      text-decoration: none;
+      color: inherit;
+      position: relative;
+      overflow: hidden;
+      transition: box-shadow 0.18s, transform 0.18s, border-color 0.18s;
     }
-    .sidebar h2 {
-      font-size: 11px;
-      font-weight: 500;
-      color: var(--text-tertiary);
-      text-transform: uppercase;
-      letter-spacing: 0.07em;
-      margin-bottom: 6px;
-      padding-bottom: 8px;
-      border-bottom: 0.5px solid var(--border-light);
-    }
-    .club-card {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 7px 9px;
-      border-radius: var(--radius-md);
+
+    .card-live {
       cursor: pointer;
-      border: 0.5px solid transparent;
-      transition: border-color 0.12s, background 0.12s;
-    }
-    .club-card:hover  { background: var(--bg-secondary); border-color: var(--border-mid); }
-    .club-card.active { background: var(--bg-secondary); border-color: var(--border-strong); }
-    .club-dot {
-      width: 28px; height: 28px;
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 9px; font-weight: 600;
-      flex-shrink: 0;
-    }
-    .club-info { flex: 1; min-width: 0; }
-    .club-name  { font-size: 13px; font-weight: 500; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .club-picks-count { font-size: 11px; color: var(--text-secondary); }
-
-    /* ── Panel (shared) ──────────────────────────────────── */
-    .panel {
-      background: var(--bg-primary);
-      border-radius: var(--radius-lg);
-      border: 0.5px solid var(--border-light);
-      padding: 1rem 1.25rem;
-      max-height: 700px;
-      overflow-y: auto;
-    }
-    .panel-title {
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text-secondary);
-      margin-bottom: 0.75rem;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-    }
-    .panel-title-badge {
-      font-size: 11px;
-      background: var(--bg-secondary);
-      padding: 2px 8px;
-      border-radius: 10px;
-      color: var(--text-tertiary);
     }
 
-    /* ── Position filters ────────────────────────────────── */
-    .filter-row { display: flex; gap: 5px; margin-bottom: 0.75rem; flex-wrap: wrap; }
-    .filter-btn {
-      font-size: 11px;
-      padding: 3px 8px;
-      border-radius: 10px;
-      border: 0.5px solid var(--border-light);
-      background: transparent;
-      color: var(--text-secondary);
-      cursor: pointer;
-      font-family: inherit;
-      transition: all 0.1s;
-    }
-    .filter-btn.active {
-      background: var(--bg-secondary);
-      border-color: var(--border-strong);
-      color: var(--text-primary);
-    }
-
-    /* ── Prospect rows ───────────────────────────────────── */
-    .prospect-row {
-      display: flex;
-      align-items: center;
-      gap: 9px;
-      padding: 7px 9px;
-      border-radius: var(--radius-md);
-      cursor: pointer;
-      border: 0.5px solid transparent;
-      transition: all 0.1s;
-      margin-bottom: 3px;
-    }
-    .prospect-row:hover { background: var(--bg-secondary); border-color: var(--border-light); }
-    .prospect-row.drafted { opacity: 0.35; pointer-events: none; }
-    .rank-num { font-size: 11px; color: var(--text-tertiary); width: 18px; text-align: right; flex-shrink: 0; }
-    .prospect-avatar {
-      width: 32px; height: 32px;
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 11px; font-weight: 500;
-      flex-shrink: 0;
-    }
-    .prospect-details { flex: 1; min-width: 0; }
-    .prospect-name { font-size: 13px; font-weight: 500; color: var(--text-primary); }
-    .prospect-meta { font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .prospect-tied { font-size: 10px; color: var(--text-tertiary); font-weight: 400; }
-    .pos-badge {
-      font-size: 10px;
-      font-weight: 500;
-      padding: 2px 6px;
-      border-radius: 10px;
-      flex-shrink: 0;
-      white-space: nowrap;
-    }
-    .draft-btn {
-      font-size: 11px;
-      padding: 4px 10px;
-      border-radius: var(--radius-md);
-      background: transparent;
-      border: 0.5px solid var(--border-mid);
-      color: var(--text-primary);
-      cursor: pointer;
-      font-family: inherit;
-      flex-shrink: 0;
-      transition: background 0.1s;
-    }
-    .draft-btn:hover { background: var(--bg-secondary); }
-
-    /* ── Draft board rows ────────────────────────────────── */
-    .pick-row {
-      display: flex;
-      align-items: center;
-      gap: 9px;
-      padding: 7px 9px;
-      border-radius: var(--radius-md);
-      border: 0.5px solid var(--border-light);
-      background: var(--bg-primary);
-      margin-bottom: 4px;
-      transition: border-color 0.12s, background 0.12s;
-    }
-    .pick-row.current-pick {
-      border-color: var(--border-info);
-      background: var(--bg-info);
-    }
-    .pick-row.highlighted { border-color: var(--border-strong); }
-    .pick-num { font-size: 11px; color: var(--text-tertiary); width: 32px; flex-shrink: 0; }
-    .pick-club-dot {
-      width: 24px; height: 24px;
-      border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 8px; font-weight: 600;
-      flex-shrink: 0;
-    }
-    .pick-club-name { font-size: 12px; color: var(--text-secondary); width: 82px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .pick-player { font-size: 13px; font-weight: 500; color: var(--text-primary); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .pick-player.empty { color: var(--text-tertiary); font-weight: 400; font-style: italic; }
-
-    /* ── Toast ───────────────────────────────────────────── */
-    .toast {
-      position: fixed;
-      bottom: 24px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: var(--bg-primary);
-      border: 0.5px solid var(--border-mid);
-      border-radius: var(--radius-md);
-      padding: 9px 18px;
-      font-size: 13px;
-      color: var(--text-primary);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-      z-index: 999;
+    .card-live::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--green), #40d980);
       opacity: 0;
-      transition: opacity 0.25s;
+      transition: opacity 0.18s;
+    }
+
+    .card-live:hover {
+      box-shadow: 0 8px 28px rgba(0,0,0,0.1), 0 2px 8px rgba(0,0,0,0.06);
+      transform: translateY(-3px);
+      border-color: rgba(0,0,0,0.11);
+    }
+
+    .card-live:hover::before { opacity: 1; }
+
+    .card-soon {
+      opacity: 0.5;
+      cursor: default;
       pointer-events: none;
-      white-space: nowrap;
     }
-    .toast.show { opacity: 1; }
 
-    /* ── Bid match modal ── */
-    .modal-overlay {
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,0.45);
+    .card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 1.1rem;
+    }
+
+    .card-icon {
+      width: 44px; height: 44px;
+      border-radius: 11px;
       display: flex; align-items: center; justify-content: center;
-      z-index: 200;
-    }
-    .modal-overlay.hidden { display: none; }
-    .modal-box {
-      background: var(--bg-primary);
-      border: 0.5px solid var(--border-mid);
-      border-radius: var(--radius-lg);
-      padding: 1.5rem;
-      max-width: 440px; width: 90%;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
-    }
-    .modal-box h3 { font-size: 16px; font-weight: 500; margin-bottom: 0.5rem; }
-    .modal-box p  { font-size: 13px; color: var(--text-secondary); margin-bottom: 1.25rem; line-height: 1.6; }
-    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
-    .modal-club-dot {
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 22px; height: 22px; border-radius: 50%;
-      font-size: 8px; font-weight: 600;
-      vertical-align: middle; margin-right: 3px;
+      font-size: 22px;
+      flex-shrink: 0;
     }
 
-    /* ── Sort toggle ─────────────────────────────────────── */
-    .sort-btn {
-      font-size: 11px;
-      padding: 3px 8px;
-      border-radius: var(--radius-md);
-      border: 0.5px solid var(--border-mid);
-      background: transparent;
-      color: var(--text-secondary);
-      cursor: pointer;
-      font-family: inherit;
-    }
-    .sort-btn:hover { background: var(--bg-secondary); }
+    .icon-green { background: rgba(0,166,81,0.1); }
+    .icon-blue  { background: rgba(56,100,180,0.1); }
+    .icon-amber { background: rgba(215,140,0,0.1); }
 
-    /* ── Round divider ───────────────────────────────────── */
-    .round-divider {
+    .card-pill {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 3px 9px;
+      border-radius: 6px;
+    }
+
+    .pill-year  { background: #eef2f7; color: var(--text-muted); }
+    .pill-soon  { background: #f3f4f6; color: var(--text-muted); }
+
+    .card-title {
+      font-size: 16.5px;
+      font-weight: 600;
+      color: var(--text-head);
+      letter-spacing: -0.015em;
+      margin-bottom: 0.45rem;
+    }
+
+    .card-desc {
+      font-size: 13.5px;
+      color: var(--text-body);
+      line-height: 1.65;
+      flex: 1;
+      margin-bottom: 1.1rem;
+    }
+
+    .card-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-bottom: 1.25rem;
+    }
+
+    .tag {
       font-size: 11px;
       font-weight: 500;
-      color: var(--text-tertiary);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      padding: 8px 0 4px;
-      margin-bottom: 4px;
-      border-top: 0.5px solid var(--border-light);
-      margin-top: 4px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: #eef2f7;
+      color: #5a6780;
+      letter-spacing: 0.02em;
     }
-    .round-divider:first-child { border-top: none; margin-top: 0; }
+
+    .card-cta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--green-dark);
+      padding-top: 1rem;
+      border-top: 0.5px solid var(--border);
+    }
+
+    .card-cta .arrow { transition: transform 0.15s; }
+    .card-live:hover .card-cta .arrow { transform: translateX(4px); }
+
+    /* ── Stats strip ──────────────────────────────────────── */
+    .stats-strip {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 3rem;
+      flex-wrap: wrap;
+    }
+
+    .stat-box {
+      background: var(--white);
+      border: 0.5px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+
+    .stat-value {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text-head);
+    }
+
+    .stat-label {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* ── Footer ───────────────────────────────────────────── */
+    footer {
+      border-top: 0.5px solid var(--border);
+      padding: 1.5rem;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    footer a { color: var(--text-muted); text-decoration: none; }
+    footer a:hover { color: var(--text-body); }
+    footer .sep { margin: 0 8px; opacity: 0.4; }
+
+    @media (max-width: 600px) {
+      .hero { padding: 3.5rem 1.25rem 3rem; }
+      .main { padding: 2.5rem 1.25rem 3rem; }
+      .hero-title { letter-spacing: -0.02em; }
+    }
   </style>
 </head>
 <body>
 
-<div class="app">
-
-  <!-- Header -->
-  <div class="app-header">
-    <div>
-      <h1>2026 AFL Draft Simulator</h1>
-      <p>Select players for each club across 5 rounds of the national draft · 2025 DVI points shown per pick</p>
+<!-- Hero -->
+<header class="hero">
+  <div class="hero-inner">
+    <div class="hero-badge">
+      <div class="hero-badge-dot"></div>
+      AFL · Statistics · Data
     </div>
-    <div class="controls">
-      <button class="btn" id="auto-pick-btn">Auto pick (1)</button>
-      <button class="btn" id="auto-all-btn">Auto all remaining</button>
-      <button class="btn danger" id="reset-btn">Reset draft</button>
+    <h1 class="hero-title">AFL Data Projects</h1>
+    <p class="hero-sub">Interactive tools and statistical analysis for Australian Rules Football.</p>
+  </div>
+</header>
+
+<!-- Main -->
+<main class="main">
+
+  <!-- Quick stats -->
+  <div class="stats-strip">
+    <div class="stat-box">
+      <div class="stat-value">18</div>
+      <div class="stat-label">AFL clubs</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value">5</div>
+      <div class="stat-label">Draft rounds</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value">90+</div>
+      <div class="stat-label">Draft picks</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value">Live</div>
+      <div class="stat-label">Ladder data</div>
     </div>
   </div>
 
-  <!-- Progress -->
-  <div class="progress-wrap">
-    <div class="progress-info">
-      <div class="progress-label" id="progress-text">0 / 36 picks made</div>
-      <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
-    </div>
-    <div class="pick-badge" id="current-pick-badge">Pick 1 on the clock</div>
-    <div id="ladder-status" style="font-size:11px;color:var(--text-tertiary);white-space:nowrap;">Loading ladder…</div>
+  <!-- Projects -->
+  <div class="section-head">
+    <span class="section-label">Projects</span>
+    <div class="section-rule"></div>
   </div>
 
-  <!-- Main grid -->
-  <div class="main-grid">
+  <div class="grid">
 
-    <!-- Sidebar: clubs -->
-    <div class="sidebar">
-      <h2>Clubs</h2>
-      <div id="club-list"></div>
-    </div>
-
-    <!-- Prospects panel -->
-    <div class="panel">
-      <div class="panel-title">
-        <span>Available prospects</span>
-        <button class="sort-btn" id="sort-btn">Sort: Rank</button>
+    <!-- Draft Simulator -->
+    <a href="draft-simulator.html" class="card card-live">
+      <div class="card-top">
+        <div class="card-icon icon-green">🏉</div>
+        <span class="card-pill pill-year">2026</span>
       </div>
-      <div class="filter-row" id="pos-filters"></div>
-      <div id="prospect-list"></div>
-    </div>
-
-    <!-- Draft board -->
-    <div class="panel">
-      <div class="panel-title">
-        <span>Draft board</span>
-        <span class="panel-title-badge" id="round-label">R1: 0/18 · R2: 0/18</span>
+      <h3 class="card-title">AFL Draft Simulator</h3>
+      <p class="card-desc">Simulate the 2026 National Draft. Pick players for all 18 clubs across 5 rounds, with live ladder integration, Academy and Father-Son bid matching, DVI pick valuations, and full undo support.</p>
+      <div class="card-tags">
+        <span class="tag">Draft</span>
+        <span class="tag">Live Ladder</span>
+        <span class="tag">Bid Matching</span>
+        <span class="tag">DVI Points</span>
+        <span class="tag">90+ Picks</span>
       </div>
-      <div id="draft-board"></div>
+      <div class="card-cta">
+        Launch Simulator
+        <svg class="arrow" width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <path d="M2 8h12M9 3l5 5-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    </a>
+
+    <!-- Coming soon: Stats -->
+    <div class="card card-soon">
+      <div class="card-top">
+        <div class="card-icon icon-blue">📊</div>
+        <span class="card-pill pill-soon">Coming soon</span>
+      </div>
+      <h3 class="card-title">Player Stats Explorer</h3>
+      <p class="card-desc">Browse and compare AFL player statistics across seasons, with filtering by position, club, and year.</p>
+      <div class="card-tags">
+        <span class="tag">Stats</span>
+        <span class="tag">Historical</span>
+        <span class="tag">Positions</span>
+      </div>
+    </div>
+
+    <!-- Coming soon: Ladder -->
+    <div class="card card-soon">
+      <div class="card-top">
+        <div class="card-icon icon-amber">📈</div>
+        <span class="card-pill pill-soon">Coming soon</span>
+      </div>
+      <h3 class="card-title">Ladder Predictor</h3>
+      <p class="card-desc">Predict end-of-season ladder positions based on remaining fixtures, current form, and strength-of-schedule.</p>
+      <div class="card-tags">
+        <span class="tag">Ladder</span>
+        <span class="tag">Fixtures</span>
+        <span class="tag">Predictions</span>
+      </div>
     </div>
 
   </div>
-</div>
 
-<div id="toast" class="toast"></div>
+</main>
 
-<!-- Bid match modal -->
-<div id="bid-modal" class="modal-overlay hidden">
-  <div class="modal-box">
-    <h3 id="modal-title">Academy / Father-Son Bid</h3>
-    <p id="modal-body"></p>
-    <div class="modal-actions">
-      <button class="btn" id="modal-decline">Decline — let bid stand</button>
-      <button class="btn primary" id="modal-match">Match bid</button>
-    </div>
-  </div>
-</div>
+<footer>
+  <p>
+    Built by <a href="https://github.com/tbob3211" target="_blank" rel="noopener">tbob3211</a>
+    <span class="sep">·</span>
+    <a href="https://github.com/tbob3211/AFL-Data-Projects" target="_blank" rel="noopener">View on GitHub</a>
+  </p>
+</footer>
 
-<script src="draft-values.js"></script>
-<script src="pick-trades.js"></script>
-<script>
-  /* ══════════════════════════════════════════
-     DATA
-  ══════════════════════════════════════════ */
-
-  const CLUBS = [
-    { id: 'ade', name: 'Adelaide',         short: 'ADE', color: '#002B5C', text: '#ffffff' },
-    { id: 'bri', name: 'Brisbane',         short: 'BRI', color: '#7B2D8B', text: '#ffffff' },
-    { id: 'car', name: 'Carlton',          short: 'CAR', color: '#003087', text: '#ffffff' },
-    { id: 'col', name: 'Collingwood',      short: 'COL', color: '#1a1a1a', text: '#ffffff' },
-    { id: 'ess', name: 'Essendon',         short: 'ESS', color: '#CC0000', text: '#ffffff' },
-    { id: 'fre', name: 'Fremantle',        short: 'FRE', color: '#2C1654', text: '#ffffff' },
-    { id: 'gcs', name: 'Gold Coast',       short: 'GCS', color: '#C8A84B', text: '#1a1a1a' },
-    { id: 'gws', name: 'GWS Giants',       short: 'GWS', color: '#F47920', text: '#ffffff' },
-    { id: 'gee', name: 'Geelong',          short: 'GEE', color: '#1C3F7A', text: '#ffffff' },
-    { id: 'haw', name: 'Hawthorn',         short: 'HAW', color: '#4D2004', text: '#FFC220' },
-    { id: 'mel', name: 'Melbourne',        short: 'MEL', color: '#CC2031', text: '#ffffff' },
-    { id: 'nth', name: 'North Melbourne',  short: 'NTH', color: '#003E7E', text: '#ffffff' },
-    { id: 'por', name: 'Port Adelaide',    short: 'POR', color: '#008AAB', text: '#ffffff' },
-    { id: 'ric', name: 'Richmond',         short: 'RIC', color: '#FFD200', text: '#1a1a1a' },
-    { id: 'stk', name: 'St Kilda',         short: 'STK', color: '#E31E24', text: '#ffffff' },
-    { id: 'syd', name: 'Sydney',           short: 'SYD', color: '#E31E24', text: '#ffffff' },
-    { id: 'wce', name: 'West Coast',       short: 'WCE', color: '#003087', text: '#FFD200' },
-    { id: 'wbd', name: 'Western Bulldogs', short: 'WBD', color: '#0057A8', text: '#ffffff' },
-  ];
-
-  // Position badge colours: [background, text]
-  const POS_COLORS = {
-    'MID':     ['#E6F1FB', '#185FA5'],
-    'FWD':     ['#FAECE7', '#993C1D'],
-    'DEF':     ['#EAF3DE', '#3B6D11'],
-    'RUC':     ['#FAEEDA', '#854F0B'],
-    'KeyFWD': ['#EEEDFE', '#534AB7'],
-    'KeyDEF': ['#E1F5EE', '#0F6E56'],
-  };
-
-  // ── Prospects: declared here, populated by init() ──
-  let PROSPECTS = [];
-
-  function parseTied(link) {
-    if (!link) return null;
-    const map = {
-      'Port Adelaide': 'por', 'Carlton': 'car', 'West Coast': 'wce',
-      'Essendon': 'ess', 'Adelaide': 'ade', 'Richmond': 'ric',
-      'GWS': 'gws', 'Sydney': 'syd', 'Gold Coast': 'gcs',
-      'Fremantle': 'fre', 'Hawthorn': 'haw', 'Melbourne': 'mel',
-      'Western Bulldogs': 'wbd', 'North Melbourne': 'nth',
-      'Brisbane': 'bri', 'Geelong': 'gee', 'Collingwood': 'col',
-      'St Kilda': 'stk',
-    };
-    for (const [name, id] of Object.entries(map)) {
-      if (link.includes(name)) return id;
-    }
-    return null;
-  }
-
-  // Parses a range string like "10-20" → returns the lower number for sorting.
-  // Players with no range are pushed to the bottom (rank 999).
-  function parseRange(rangeStr) {
-    if (!rangeStr || !rangeStr.trim()) return 999;
-    const match = rangeStr.trim().match(/^(\d+)/);
-    return match ? parseInt(match[1], 10) : 999;
-  }
-
-  async function loadProspects() {
-    const response = await fetch('prospects.csv');
-    const text = await response.text();
-    const lines = text.trim().split('\n');
-
-    // CSV columns: Name, Height, DOB, Position, Junior Club, State, Range, Academy/Link
-    const prospects = lines.slice(1).map((line, index) => {
-      // Handle commas inside quoted fields (e.g. "Club, State")
-      const values = line.split(',');
-      const rangeRaw = values[6]?.trim() || '';
-      return {
-        id:         index + 1,
-        name:       values[0]?.trim().replace(/^\uFEFF/, ''), // strip BOM if present
-        height:     values[1]?.trim() ? values[1].trim() + 'cm' : '',
-        dob:        values[2]?.trim(),
-        pos:        values[3]?.trim(),
-        club:       values[4]?.trim(),
-        state:      values[5]?.trim(),
-        range:      rangeRaw,           // e.g. "10-20" — displayed on card
-        rangeSort:  parseRange(rangeRaw), // lower number = ranks first
-        tied:       parseTied(values[7]?.trim()), // Academy/Link now col 7
-        rank:       index + 1,          // original row order, kept as fallback
-      };
-    }).filter(p => p.name);
-
-    // Sort by draft range (lowest first), then alphabetically for ties
-    prospects.sort((a, b) => a.rangeSort - b.rangeSort || a.name.localeCompare(b.name));
-
-    // Re-assign rank based on sorted order
-    prospects.forEach((p, i) => { p.rank = i + 1; });
-
-    return prospects;
-  }
-
-  // ── Draft order ──
-  // Fallback used if ladder.json is missing (based on 2025 final ladder)
-  // Base order (18 clubs, reverse ladder). Repeated 5 times for 5 rounds = 90 picks.
-  const FALLBACK_ORDER = ['ric','ess','car','por','wce','nth','col','stk','gws','mel','wbd','ade','gcs','bri','gee','haw','fre','syd'];
-  const NUM_ROUNDS = 5;
-
-  const SQUIGGLE_NAME_MAP = {
-    'Adelaide':               'ade',
-    'Brisbane Lions':         'bri',
-    'Carlton':                'car',
-    'Collingwood':            'col',
-    'Essendon':               'ess',
-    'Fremantle':              'fre',
-    'Gold Coast':             'gcs',
-    'Greater Western Sydney': 'gws',
-    'Geelong':                'gee',
-    'Hawthorn':               'haw',
-    'Melbourne':              'mel',
-    'North Melbourne':        'nth',
-    'Port Adelaide':          'por',
-    'Richmond':               'ric',
-    'St Kilda':               'stk',
-    'Sydney':                 'syd',
-    'West Coast':             'wce',
-    'Western Bulldogs':       'wbd',
-  };
-
-  let ALL_PICKS = Array.from({length: NUM_ROUNDS}, () => [...FALLBACK_ORDER]).flat(); // 5 rounds = 90 picks
-  const compPicksAwarded = new Set(); // tracks clubs awarded a Round 2 comp pick (capped at 1 per club)
-  let LADDER_POSITIONS = {}; // clubId → rank (1 = top of ladder, 18 = bottom)
-
-  /* ══════════════════════════════════════════
-     LADDER — reads from ladder.json (generated
-     by GitHub Action from Squiggle API daily)
-  ══════════════════════════════════════════ */
-
-  async function loadLadder() {
-    const statusEl = document.getElementById('ladder-status');
-    statusEl.textContent = 'Loading ladder…';
-
-    try {
-      const res = await fetch('ladder.json');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      const standings = data.standings;
-
-      if (!standings || standings.length === 0) throw new Error('No standings data');
-
-      // Sort rank ascending: rank 1 = top of ladder
-      standings.sort((a, b) => a.rank - b.rank);
-
-      // Reverse: rank 18 (last) picks first
-      const draftOrder = standings
-        .slice()
-        .reverse()
-        .map(team => SQUIGGLE_NAME_MAP[team.name])
-        .filter(Boolean);
-
-      if (draftOrder.length !== 18) throw new Error(`Expected 18 teams, got ${draftOrder.length}`);
-
-      ALL_PICKS = Array.from({length: NUM_ROUNDS}, () => [...draftOrder]).flat(); // 5 rounds
-
-      LADDER_POSITIONS = {};
-      standings.forEach(team => {
-        const clubId = SQUIGGLE_NAME_MAP[team.name];
-        if (clubId) LADDER_POSITIONS[clubId] = team.rank;
-      });
-
-      const maxRound = Math.max(...standings.map(t => t.played || 0));
-      statusEl.textContent = maxRound > 0
-        ? `✓ Live ladder loaded — after Round ${maxRound}`
-        : '✓ Pre-season ladder loaded';
-      statusEl.style.color = 'var(--text-success)';
-
-    } catch (err) {
-      console.warn('ladder.json not found, using fallback order:', err.message);
-      ALL_PICKS = Array.from({length: NUM_ROUNDS}, () => [...FALLBACK_ORDER]).flat(); // 5 rounds
-      LADDER_POSITIONS = {};
-      FALLBACK_ORDER.forEach((clubId, i) => { LADDER_POSITIONS[clubId] = 18 - i; }); // index 0 = worst = rank 18
-      statusEl.textContent = '⚠ Using Round 9 ladder order';
-      statusEl.style.color = 'var(--text-secondary)';
-    }
-  }
-
-  /* ══════════════════════════════════════════
-     STATE
-  ══════════════════════════════════════════ */
-
-  let draftResults      = new Array(ALL_PICKS.length).fill(null); // prospectId per pick slot
-  let PICK_ROUND_LABELS = []; // parallel to ALL_PICKS — '1','2',…,'5', or 'comp'
-  let currentPick   = 0;
-  let posFilter     = 'All';
-  let sortMode      = 'rank'; // 'rank' | 'name'
-  let selectedClub  = null;  // clubId string or null
-
-  /* ══════════════════════════════════════════
-     HELPERS
-  ══════════════════════════════════════════ */
-
-  const getClub     = id => CLUBS.find(c => c.id === id);
-  const getProspect = id => PROSPECTS.find(p => p.id === id);
-  const isDrafted   = id => draftResults.some(r => r === id);
-
-  function getClubPicks(clubId) {
-    return ALL_PICKS.map((cid, idx) => ({
-      pickNum: idx + 1,
-      round: idx < 18 ? 1 : 2,
-      prospectId: draftResults[idx],
-      isMine: cid === clubId,
-    })).filter(p => p.isMine);
-  }
-
-  function showToast(msg) {
-    const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.classList.add('show');
-    clearTimeout(t._timer);
-    t._timer = setTimeout(() => t.classList.remove('show'), 2800);
-  }
-
-  function posBadge(pos) {
-    const [bg, fg] = POS_COLORS[pos] || ['#eee', '#333'];
-    return `<span class="pos-badge" style="background:${bg};color:${fg}">${pos}</span>`;
-  }
-
-  /* ══════════════════════════════════════════
-     ACTIONS
-  ══════════════════════════════════════════ */
-
-  /* ══════════════════════════════════════════
-     BID MATCHING SYSTEM
-  ══════════════════════════════════════════ */
-
-  // Returns [{idx, pickNum}] for all remaining unused picks belonging to a club after afterIdx
-  function getClubRemainingPickNumbers(clubId, afterIdx) {
-    const picks = [];
-    for (let i = afterIdx; i < ALL_PICKS.length; i++) {
-      if (ALL_PICKS[i] === clubId && !draftResults[i]) {
-        picks.push({ idx: i, pickNum: i + 1 });
-      }
-    }
-    return picks;
-  }
-
-  // Tied club matches the bid — insert them at bidPickIdx, remove their original pick
-  // Returns the index in ALL_PICKS where Round 2 begins (after 18 slots)
-  function getRound2StartIdx() {
-    const idx = PICK_ROUND_LABELS.indexOf('2');
-    return idx === -1 ? ALL_PICKS.length : idx;
-  }
-
-  function buildPickLabels() {
-    return Array.from({length: NUM_ROUNDS}, (_, r) => new Array(18).fill(String(r + 1))).flat();
-  }
-
-  // pickIndicesToSpend: array of indices in ALL_PICKS (before the insert) to remove
-  function matchBid(prospectId, bidPickIdx, tiedClubId, pickIndicesToSpend) {
-    const p        = getProspect(prospectId);
-    const tiedClub = getClub(tiedClubId);
-
-    // Record top-5 displaced clubs before any splicing
-    const top5InOrder = [];
-    if (bidPickIdx <= 4) {
-      for (let i = 0; i <= 4 && i < ALL_PICKS.length; i++) {
-        if (!draftResults[i] && ALL_PICKS[i] !== tiedClubId) {
-          top5InOrder.push(ALL_PICKS[i]);
-        }
-      }
-    }
-
-    // Insert tiedClub into the pick order at bidPickIdx
-    const bidRoundLabel = PICK_ROUND_LABELS[bidPickIdx];
-    ALL_PICKS.splice(bidPickIdx, 0, tiedClubId);
-    draftResults.splice(bidPickIdx, 0, null);
-    PICK_ROUND_LABELS.splice(bidPickIdx, 0, bidRoundLabel);
-
-    // All indices after bidPickIdx have shifted +1 — remove spent picks in descending order
-    // so that earlier removals don't affect the positions of later ones
-    const adjustedIndices = pickIndicesToSpend
-      .map(i => i + 1)
-      .sort((a, b) => b - a);
-    for (const adjIdx of adjustedIndices) {
-      ALL_PICKS.splice(adjIdx, 1);
-      draftResults.splice(adjIdx, 1);
-      PICK_ROUND_LABELS.splice(adjIdx, 1);
-    }
-
-    // Assign player to bid slot
-    draftResults[bidPickIdx] = prospectId;
-    currentPick = bidPickIdx + 1;
-
-    const spentStr = pickIndicesToSpend.length
-      ? ` (spent ${pickIndicesToSpend.map(i => `Pick ${i + 1}`).join(', ')})`
-      : '';
-    showToast(`${tiedClub.name} MATCH — ${p.name} joins ${tiedClub.name}${spentStr}`);
-
-    // Award comp picks in REVERSE order so that when inserted at r2Start,
-    // the club with the highest pick (pick 1) ends up FIRST in Round 2.
-    // Example: [Richmond, Essendon, Carlton] reversed → insert Carlton first,
-    // then Essendon, then Richmond → Richmond ends up at r2Start (first).
-    const toAward = top5InOrder
-      .filter(clubId => !compPicksAwarded.has(clubId));
-
-    toAward.forEach((clubId, i) => {
-      const r2Start = getRound2StartIdx();
-      ALL_PICKS.splice(r2Start, 0, clubId);
-      draftResults.splice(r2Start, 0, null);
-      PICK_ROUND_LABELS.splice(r2Start, 0, 'comp');
-      compPicksAwarded.add(clubId);
-      const club = getClub(clubId);
-      setTimeout(() => {
-        showToast(`🔄 ${club.name} receive a compensation pick (top-5 displaced)`);
-      }, 700 + i * 1200);
-    });
-
-    render();
-  }
-
-  // Tied club declines — original bidding club keeps the player
-  function declineBid(prospectId, bidPickIdx) {
-    const p       = getProspect(prospectId);
-    const bidClub = getClub(ALL_PICKS[bidPickIdx]);
-    draftResults[bidPickIdx] = prospectId;
-    currentPick = bidPickIdx + 1;
-    showToast(`Bid stands — ${bidClub.name} select ${p.name}`);
-    render();
-  }
-
-  function closeModal() {
-    document.getElementById('bid-modal').classList.add('hidden');
-  }
-
-  // Core draft function — triggers bid modal if player is tied to another club
-  function draftPlayer(prospectId, autoMatch = false) {
-    if (currentPick >= ALL_PICKS.length) return;
-    if (isDrafted(prospectId)) { showToast('Player already drafted.'); return; }
-
-    const p             = getProspect(prospectId);
-    const biddingClubId = ALL_PICKS[currentPick];
-    const biddingClub   = getClub(biddingClubId);
-    const bidPickIdx    = currentPick;
-
-    // Check if player is tied to a different club
-    if (p.tied && p.tied !== biddingClubId) {
-      const tiedClub      = getClub(p.tied);
-      const tiedRemaining = getClubRemainingPickNumbers(p.tied, currentPick + 1);
-      const tiedRank      = LADDER_POSITIONS[p.tied] || 18;
-      const matchCost     = getMatchCost(bidPickIdx + 1, tiedRank);
-      const bidValue      = getPickValue(bidPickIdx + 1);
-
-      // Find which combination of picks covers the match cost
-      const pickNumsToSpend = tiedRemaining.length > 0
-        ? findMatchingPicks(tiedRemaining.map(r => r.pickNum), matchCost)
-        : null;
-
-      // Tied club can't match — bid stands automatically
-      if (!pickNumsToSpend) {
-        const reason = tiedRemaining.length === 0 ? 'no remaining picks' : 'insufficient pick value';
-        draftResults[bidPickIdx] = prospectId;
-        currentPick++;
-        showToast(`${tiedClub.name} cannot match (${reason}) — ${biddingClub.name} keep ${p.name}`);
-        render();
-        return;
-      }
-
-      // Convert pick numbers back to ALL_PICKS indices
-      const pickIndicesToSpend = pickNumsToSpend.map(pn =>
-        tiedRemaining.find(r => r.pickNum === pn).idx
-      );
-
-      if (autoMatch) {
-        matchBid(prospectId, bidPickIdx, p.tied, pickIndicesToSpend);
-        return;
-      }
-
-      // Manual mode: show bid modal with full cost breakdown
-      const totalSpent  = pickNumsToSpend.reduce((s, pn) => s + getPickValue(pn), 0);
-      const picksDetail = pickNumsToSpend
-        .map(pn => `Pick ${pn} <span style="color:var(--text-tertiary)">(${getPickValue(pn)}pts)</span>`)
-        .join(', ');
-
-      const dot = `<span class="modal-club-dot" style="background:${tiedClub.color};color:${tiedClub.text}">${tiedClub.short}</span>`;
-      document.getElementById('modal-title').textContent = 'Academy / Father-Son Bid';
-      document.getElementById('modal-body').innerHTML =
-        `<strong>${biddingClub.name}</strong> bid on <strong>${p.name}</strong> with Pick ${bidPickIdx + 1}` +
-        `${bidValue > 0 ? ` <span style="color:var(--text-tertiary)">(${bidValue}pts)</span>` : ''}.<br><br>` +
-        `Match cost: <strong>${matchCost}pts</strong> <span style="color:var(--text-tertiary)">(${getMatchModifierLabel(tiedRank)})</span><br><br>` +
-        `${dot} <strong>${tiedClub.name}</strong> would spend: ${picksDetail}<br>` +
-        `<span style="color:var(--text-tertiary);font-size:12px;">Total value committed: ${totalSpent}pts</span>`;
-
-      // Clone buttons to remove any previous event listeners
-      const matchBtn   = document.getElementById('modal-match');
-      const declineBtn = document.getElementById('modal-decline');
-      const newMatch   = matchBtn.cloneNode(true);
-      const newDecline = declineBtn.cloneNode(true);
-      matchBtn.replaceWith(newMatch);
-      declineBtn.replaceWith(newDecline);
-
-      newMatch.addEventListener('click', () => {
-        closeModal();
-        matchBid(prospectId, bidPickIdx, p.tied, pickIndicesToSpend);
-      });
-      newDecline.addEventListener('click', () => {
-        closeModal();
-        declineBid(prospectId, bidPickIdx);
-      });
-
-      document.getElementById('bid-modal').classList.remove('hidden');
-      return;
-    }
-
-    // No tie — straightforward pick
-    draftResults[bidPickIdx] = prospectId;
-    showToast(`Pick ${bidPickIdx + 1}: ${biddingClub.name} select ${p.name}`);
-    currentPick++;
-    render();
-  }
-
-  function autoPickOne() {
-    if (currentPick >= ALL_PICKS.length) return;
-    const clubId    = ALL_PICKS[currentPick];
-    const available = PROSPECTS.filter(p => !isDrafted(p.id));
-    if (!available.length) return;
-    // Prioritise club-tied prospects
-    const tied = available.filter(p => p.tied === clubId);
-    draftPlayer((tied.length ? tied[0] : available[0]).id, true); // autoMatch = true
-  }
-
-  function autoPickAll() {
-    let guard = 0;
-    function step() {
-      if (currentPick >= ALL_PICKS.length || guard++ > 200) return;
-      autoPickOne();
-      if (currentPick < ALL_PICKS.length && document.getElementById('bid-modal').classList.contains('hidden')) {
-        setTimeout(step, 70);
-      }
-    }
-    step();
-  }
-
-  function selectClub(id) {
-    selectedClub = selectedClub === id ? null : id;
-    render();
-  }
-
-  function setFilter(pos) {
-    posFilter = pos;
-    renderProspects();
-    renderPosFilters();
-  }
-
-  function toggleSort() {
-    sortMode = sortMode === 'rank' ? 'name' : 'rank';
-    document.getElementById('sort-btn').textContent = `Sort: ${sortMode === 'rank' ? 'Range' : 'Name'}`;
-    renderProspects();
-  }
-
-  /* ══════════════════════════════════════════
-     RENDER FUNCTIONS
-  ══════════════════════════════════════════ */
-
-  function renderClubList() {
-    document.getElementById('club-list').innerHTML = CLUBS.map(club => {
-      const picks = getClubPicks(club.id);
-      const made  = picks.filter(p => p.prospectId).length;
-      return `<div class="club-card${selectedClub === club.id ? ' active' : ''}" onclick="selectClub('${club.id}')">
-        <div class="club-dot" style="background:${club.color};color:${club.text}">${club.short}</div>
-        <div class="club-info">
-          <div class="club-name">${club.name}</div>
-          <div class="club-picks-count">${made}/${picks.length} picks used</div>
-        </div>
-      </div>`;
-    }).join('');
-  }
-
-  function renderPosFilters() {
-    const positions = ['All', 'MID', 'FWD', 'DEF', 'RUC', 'KeyFWD', 'KeyDEF'];
-    document.getElementById('pos-filters').innerHTML = positions.map(p =>
-      `<button class="filter-btn${posFilter === p ? ' active' : ''}" onclick="setFilter('${p}')">${p}</button>`
-    ).join('');
-  }
-
-  function renderProspects() {
-    let list = [...PROSPECTS];
-    if (posFilter !== 'All') list = list.filter(p => p.pos === posFilter);
-
-    // Sort modes: range (default), name
-    if (sortMode === 'name') {
-      list.sort((a, b) => a.name.localeCompare(b.name));
-    } else {
-      // Sort by draft range (already sorted on load, but re-sort after filter)
-      list.sort((a, b) => a.rangeSort - b.rangeSort || a.name.localeCompare(b.name));
-    }
-
-    document.getElementById('prospect-list').innerHTML = list.map(p => {
-      const drafted    = isDrafted(p.id);
-      const tiedClub   = p.tied ? getClub(p.tied) : null;
-      const canDraft   = !drafted && currentPick < ALL_PICKS.length;
-      const rangeBadge = p.range
-        ? `<span style="font-size:10px;padding:2px 6px;border-radius:10px;background:var(--bg-secondary);color:var(--text-secondary);border:0.5px solid var(--border-light);white-space:nowrap;">Pick ${p.range}</span>`
-        : '';
-      return `<div class="prospect-row${drafted ? ' drafted' : ''}">
-        <span class="rank-num">${p.rank}</span>
-        <div class="prospect-avatar" style="background:${POS_COLORS[p.pos]?.[0]||'#eee'};color:${POS_COLORS[p.pos]?.[1]||'#333'}">
-          ${p.name.split(' ').map(w => w[0]).join('').substring(0, 2)}
-        </div>
-        <div class="prospect-details">
-          <div class="prospect-name">${p.name} ${rangeBadge}</div>
-          <div class="prospect-meta">${p.club} · ${p.state} · ${p.height}
-            ${tiedClub ? `<span class="prospect-tied"> · tied: ${tiedClub.name}</span>` : ''}
-          </div>
-        </div>
-        ${posBadge(p.pos)}
-        ${canDraft ? `<button class="draft-btn" onclick="draftPlayer(${p.id})">Draft</button>` : ''}
-      </div>`;
-    }).join('');
-  }
-
-  function renderDraftBoard() {
-    let html = '';
-    let lastRoundLabel = null;
-    let compHeaderInserted = false;
-    const pickInRndCounter = {};
-
-    ALL_PICKS.forEach((clubId, idx) => {
-      const club       = getClub(clubId);
-      const prospect   = draftResults[idx] ? getProspect(draftResults[idx]) : null;
-      const isCurrent  = idx === currentPick && currentPick < ALL_PICKS.length;
-      const isHighlit  = selectedClub && clubId === selectedClub;
-      const roundLabel = PICK_ROUND_LABELS[idx] || '1';
-      const pickNum    = idx + 1;
-      const dviValue   = typeof getPickValue === 'function' ? getPickValue(pickNum) : 0;
-
-      if (roundLabel !== lastRoundLabel) {
-        // Always inject the comp section header before Round 2 if not already shown
-        if (roundLabel === '2' && !compHeaderInserted) {
-          compHeaderInserted = true;
-          html += `<div class="round-divider">End of First Round Compensation</div>`;
-          html += `<div style="font-size:11px;color:var(--text-tertiary);padding:4px 9px 6px;font-style:italic;">No compensation picks</div>`;
-        }
-
-        lastRoundLabel = roundLabel;
-        pickInRndCounter[roundLabel] = 0;
-
-        if (roundLabel === 'comp') {
-          compHeaderInserted = true;
-          html += `<div class="round-divider">End of First Round Compensation</div>`;
-        } else {
-          html += `<div class="round-divider">Round ${roundLabel}</div>`;
-        }
-      }
-
-      pickInRndCounter[roundLabel]++;
-      const pickInRnd  = pickInRndCounter[roundLabel];
-      const pickPrefix = roundLabel === 'comp' ? 'C' : `R${roundLabel}`;
-
-      html += `<div class="pick-row${isCurrent ? ' current-pick' : ''}${isHighlit ? ' highlighted' : ''}">
-        <span class="pick-num" style="color:${isCurrent ? 'var(--text-info)' : 'var(--text-tertiary)'}">
-          ${pickPrefix}.${String(pickInRnd).padStart(2,'0')}
-        </span>
-        <div class="pick-club-dot" style="background:${club.color};color:${club.text}">${club.short}</div>
-        <span class="pick-club-name">${club.name}</span>
-        <span class="pick-player${prospect ? '' : ' empty'}">
-          ${prospect ? prospect.name : (isCurrent ? '— on the clock —' : 'TBD')}
-        </span>
-        ${prospect ? posBadge(prospect.pos) : ''}
-        ${dviValue > 0 ? `<span style="font-size:10px;color:var(--text-tertiary);white-space:nowrap;">${dviValue}pts</span>` : ''}
-      </div>`;
-    });
-
-    document.getElementById('draft-board').innerHTML = html;
-
-    // Scroll current pick into view
-    const el = document.querySelector('.pick-row.current-pick');
-    if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }
-
-  function updateProgress() {
-    const made  = draftResults.filter(Boolean).length;
-    const total = ALL_PICKS.length;
-
-    const r1Total = PICK_ROUND_LABELS.filter(l => l === '1').length;
-    const r2Total = PICK_ROUND_LABELS.filter(l => l === '2').length;
-    const madeR1  = draftResults.filter((r, i) => r && PICK_ROUND_LABELS[i] === '1').length;
-    const madeR2  = draftResults.filter((r, i) => r && PICK_ROUND_LABELS[i] === '2').length;
-
-    document.getElementById('progress-fill').style.width = `${Math.round(made / total * 100)}%`;
-    document.getElementById('progress-text').textContent = `${made} / ${total} picks made`;
-    document.getElementById('round-label').textContent   = `R1: ${madeR1}/${r1Total} · R2: ${madeR2}/${r2Total}`;
-
-    const badge = document.getElementById('current-pick-badge');
-    if (currentPick < total) {
-      const club       = getClub(ALL_PICKS[currentPick]);
-      const roundLabel = PICK_ROUND_LABELS[currentPick] || '1';
-      const pickInRnd  = PICK_ROUND_LABELS.slice(0, currentPick + 1).filter(l => l === roundLabel).length;
-      const roundStr   = roundLabel === 'comp' ? 'Comp' : `R${roundLabel}`;
-      badge.textContent = `Pick ${currentPick + 1} — ${club.name} (${roundStr}.${pickInRnd})`;
-      badge.classList.remove('complete');
-    } else {
-      badge.textContent = 'Draft complete!';
-      badge.classList.add('complete');
-    }
-  }
-
-  function render() {
-    renderClubList();
-    renderPosFilters();
-    renderProspects();
-    renderDraftBoard();
-    updateProgress();
-  }
-
-  /* ══════════════════════════════════════════
-     EVENT LISTENERS - Check
-  ══════════════════════════════════════════ */
-
-  document.getElementById('auto-pick-btn').addEventListener('click', autoPickOne);
-  document.getElementById('auto-all-btn').addEventListener('click', autoPickAll);
-  document.getElementById('sort-btn').addEventListener('click', toggleSort);
-  document.getElementById('reset-btn').addEventListener('click', () => {
-    compPicksAwarded.clear();
-    draftResults = new Array(ALL_PICKS.length).fill(null);
-    currentPick  = 0;
-    selectedClub = null;
-    posFilter    = 'All';
-    init();
-  });
-
-  /* ══════════════════════════════════════════
-     INIT — load ladder.json + prospects.csv
-     in parallel, then render
-  ══════════════════════════════════════════ */
-
-  async function init() {
-    const [_, prospects] = await Promise.all([
-      loadLadder(),
-      loadProspects(),
-    ]);
-    PROSPECTS = prospects;
-    compPicksAwarded.clear();
-    applyPickTrades(ALL_PICKS);
-    PICK_ROUND_LABELS = buildPickLabels();
-    draftResults = new Array(ALL_PICKS.length).fill(null);
-    currentPick  = 0;
-    render();
-  }
-
-  init();
-</script>
 </body>
 </html>
