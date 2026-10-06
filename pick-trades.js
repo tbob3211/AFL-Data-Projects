@@ -66,10 +66,11 @@ const PICK_TRADES = [
   { type: 'transfer', round: 1, from: 'gcs', to: 'mel', note: 'GCS R1 → MEL' },
   { type: 'transfer', round: 1, from: 'syd', to: 'car', note: 'SYD R1 → CAR' },
   { type: 'transfer', round: 1, from: 'wbd', to: 'por', note: 'WBD R1 → POR' },
+  { type: 'transfer', round: 1, from: 'haw', to: 'ess', note: 'HAW R1 → ESS' },
   { type: 'transfer', round: 2, from: 'car', to: 'por', note: 'CAR R2 → POR' },
   { type: 'transfer', round: 2, from: 'nth', to: 'car', note: 'NTH R2 → CAR' },
   { type: 'transfer', round: 2, from: 'stk', to: 'haw', note: 'STK R2 → HAW' },
-  { type: 'transfer', round: 2, from: 'gws', to: 'haw', note: 'GWS R2 → HAW' },
+  { type: 'transfer', round: 2, from: 'gws', to: 'ess', note: 'GWS R2 → ESS' },
   { type: 'transfer', round: 2, from: 'mel', to: 'gws', note: 'MEL R2 → GWS' },
   { type: 'transfer', round: 2, from: 'gcs', to: 'car', note: 'GCS R2 → CAR' },
   { type: 'transfer', round: 3, from: 'ess', to: 'ade', note: 'ESS R3 → ADE' },
@@ -87,6 +88,8 @@ const PICK_TRADES = [
   { type: 'transfer', round: 4, from: 'mel', to: 'haw', note: 'MEL R4 → HAW' },
   { type: 'transfer', round: 4, from: 'haw', to: 'syd', note: 'HAW R4 → SYD' },
   { type: 'transfer', round: 4, from: 'syd', to: 'col', note: 'SYD R4 → COL' },
+  { type: 'transfer', round: 4, from: 'ric', to: 'fre', note: 'RIC R4 → FRE' },
+  { type: 'transfer', round: 4, from: 'gcs', to: 'col', note: 'GCS R4 → COL' },
 
 ];
 
